@@ -1,6 +1,4 @@
-Readme text
-
-Welcome to this setup to trade algorithmically.
+# Welcome to this setup to trade algorithmically.
 
 The setup is ready to be tested or modified as per your needs.
 
