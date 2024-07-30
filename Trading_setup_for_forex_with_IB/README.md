@@ -10,8 +10,8 @@ This setup can be used only for forex assets with an Interactive Brokers API.
 In case of questions, please write to:
 - Your support manager (if you’re a present EPAT student)
 - The alumni team (if you’re a past EPAT student and an alumnus)
-- QuantInsti coordinates you see on our “Contact Us” page [https://www.quantinsti.com/contact-us]([url](https://www.quantinsti.com/contact-us))
+- QuantInsti coordinates you see on our “Contact Us” page ([https://www.quantinsti.com/contact-us](https://www.quantinsti.com/contact-us))
 
 QuantInsti’s EPAT content team is responsible for maintaining and contributing to this project.
 
-Author: [José Carlos Gonzáles Tanaka]([url](https://www.linkedin.com/in/jose-carlos-gonzales-tanaka/))
+Author: ([José Carlos Gonzáles Tanaka](https://www.linkedin.com/in/jose-carlos-gonzales-tanaka/))
