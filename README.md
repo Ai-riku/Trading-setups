@@ -16,6 +16,7 @@ This folder will contain different trading setups you can use to learn how to t
 
 <a id='two'></a>
 2. Limitations and assumptions
+
     - Trading experience: The trading setups and the strategies provided here assume that traders possess the necessary expertise to apprehend the risks and customize the templates according to their risk tolerance and preferences.
     - Risk capital: Trading should only be done with risk capital, and only people who have enough of it should consider trading. It is not advisable to trade with capital that can affect one's way of life or one's financial commitments.
     - Market volatility: The trading setups and strategies provided here are contingent upon the state of the market and may not yield anticipated results during periods of high market volatility or atypical occurrences.
