@@ -28,7 +28,7 @@ We are happy to introduce a working version of our Python-based setup to trade f
 The script-based application aims to teach you how to use a ready-made IB-API-based trading setup and how it works during each trading period. We refer to our labor of love as a Python-based setup, trading app, or similar such names. We hope it’s self-evident that they all refer to the same thing!
 
 <a id='crucial_attributes'></a>
-## Crucial Attributes:
+## Crucial attributes:
 - forex trading: Our script functions and is optimized for this asset class in a streamlined manner because we created it with forex trading in mind. You can execute trades confidently because we’ve created it considering the nuances of the forex markets. 
 - Strategy customization: Our script empowers you to modify trading strategies according to your preferences and market conditions. You can control your trading approach by adjusting risk parameters or refining entry and exit criteria.
 - Flexible asset selection: You can modify your trading strategies to profit from any forex pair by having the flexibility to switch up your forex assets. You can use this trading application on as many forex pairs as IB allows.
