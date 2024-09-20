@@ -91,9 +91,9 @@ In case of questions, please write to:
     - python setup.py install
       ![image08](res/image08.png)
     - cd C:\Jts
-      ![image08](res/image09.png)
+      ![image09](res/image09.png)
     - spyder
-      ![image08](res/image10.png)
+      ![image10](res/image10.png)
 5. Once Spyder is opened, select as main folder the "trading_setup_folder" folder and open the "main.py" 
 6. Modify the inputs as per your trading requirements.
 7. Run the file, and
