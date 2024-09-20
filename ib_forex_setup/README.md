@@ -98,6 +98,6 @@ In case of questions, please write to:
       ![image09](res/image09.png)
 5. Once Spyder is opened, select as main folder the "setup" folder and open the "main.py" 
 6. Modify the inputs as per your trading requirements.
-7. Run the file, and
+7. Run the file, and ...
 
 # Go live algo trading!
