@@ -5,15 +5,15 @@ This folder will contain different types of trading setups you can use to learn 
 
 
 ## Disclaimer
-**The trading setups and their strategies are just a template and should not be used for live trading without appropriate backtesting and tweaking of the strategy parameters.**
+**The trading setups and their strategies are just templates and should not be used for live trading without appropriate backtesting and tweaking of the strategy parameters.**
 
-1. Cautionary Note
+1. Cautionary note
     - Trading is not appropriate for all investors and carries a significant risk.
-    - Markets are very unpredictable and unstable, and past performance does not guarantee future outcomes.
-    - The trading setups and the strategies that are provided here are merely meant to be educational; they are not meant to be regarded as specific investing advice.
-2. Limitations and Assumptions
-    - Trading Experience: The trading setups and the strategies provided here are predicated on the supposition that traders possess the necessary expertise to comprehend the risks involved and modify both according to their unique risk tolerance and preferences.
-    - Risk Capital: Trading should only be done with risk capital, and only people who have enough of it should think about trading. It is not advisable to trade with capital that can affect your way of life or your financial commitments.
+    - Markets are unpredictable, and past performance does not guarantee future outcomes.
+    - The trading setups and the strategies provided here are for educational purposes only; they are not investing advice.
+2. Limitations and assumptions
+    - Trading experience: The trading setups and the strategies provided here assume that traders possess the necessary expertise to apprehend the risks involved and customize them according to their risk tolerance and preferences.
+    - Risk capital: Trading should only be done with risk capital, and only people who have enough of it should think about trading. It is not advisable to trade with capital that can affect your way of life or your financial commitments.
     - Market Volatility: The trading setups and the strategies provided here are contingent upon the state of the market and may not yield anticipated results during periods of high market volatility or atypical occurrences.
     - No Promises: Trading losses are a possibility, and neither success nor profit are certain.
 3. Accountability: By utilizing these trading setups and their strategies detailed in this repository, you agree that:
