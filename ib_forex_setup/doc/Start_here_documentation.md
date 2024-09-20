@@ -1,9 +1,9 @@
-# An end-to-end setup to trade forex algorithmically
+## An end-to-end setup to trade forex algorithmically
 
 #### This is your “Start here” document to set up your system for trading forex algorithmically.
 ###### QuantInsti Webpage: https://www.quantinsti.com/
 
-# DISCLAIMER
+## Disclaimer
 
 #### This file is documentation only and should not be used for live trading without appropriate backtesting and tweaking of the strategy parameters.
 
