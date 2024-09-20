@@ -40,23 +40,24 @@ _@JCT, please make changes to the below part similar to what I've done in the ot
 - QuantInsti's EPAT content team is responsible for maintaining and contributing to this project.
 
 <a id='properties'></a>
-## Setup properties
+## Setup details
 - The trading setup allows you to trade any forex asset available in Interactive Brokers.
 - You can only trade forex assets with this trading setup.
-- It uses the Interactive Brokers API (IB API). It uses the stable version.
-- It can be used with the TWS platform or the IB Gateway as long as the trader installs the stable versions of any of them.
+- It uses the stable version of the Interactive Brokers API (IB API).
+- It can be used with the TWS platform or the IB Gateway as long as the trader installs the stable versions of each.
 - The setup is packaged as a Python library and is installable with one single code line.
-- The trading setup package can be used in any Operating system, country, or timezone.
-- There are 2 separate files apart from the trading setup package: The main file and the strategy_file file. The former is used to run the whole trading setup. The latter is to be changed per your discretion and contains all the relevant functions that can be tweaked to use your own strategy.
-- The trading setup configuration consists only of the main and the strategy file. In case you want to test the setup only, you can modify the main file only and then run the file. If you want to incorporate your own strategy, modify both files and run the main file.
-- The setup is ready to be tested or modified as per your needs.
+- You can use the trading setup package with any operating system, and from any country or timezone.
+- There are two files apart from the trading setup package: The 'main' file and the 'strategy_file' file. You can use the former to run the whole trading setup. You can change the latter at your discretion. It contains all the relevant functions you can tweak to use your strategy. _@JCT, please name the files and enclose their names in quotes or in a distinctive way._
+- The trading setup configuration consists only of the 'main' and the 'strategy' file. If you want to test the setup only, you can modify the main file and then run it. If you want to incorporate your strategy, modify both files and run the main file. _@JCT, please name the files and enclose their names in quotes or in a distinctive way._
+- The setup is ready to be tested or modified to meet your needs.
+
 
 <a id='documentation'></a>
 ## Read the documentation
-This setup can be used only for forex assets with an Interactive Brokers API. 
-- In case you want to test the trading setup quickly, please read: “Start_here_documentation”.
-- In case you want to use a customized strategy, please read: “Strategy_documentation”.
-- In case you want to learn more about the trading setup, please read: “The_trading_setup_references”.
+You can use this setup only for forex assets with an Interactive Brokers API. 
+- To test the trading setup quickly, please read: “Start_here_documentation”.
+- To use a customized strategy, please read: “Strategy_documentation”.
+- To learn more about the trading setup, please read: “The_trading_setup_references”.
 
 <a id='help'></a>
 ## Ask for help
