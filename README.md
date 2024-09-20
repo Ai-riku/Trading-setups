@@ -29,20 +29,12 @@ This folder will contain different types of trading setups you can use to learn 
 
 ## Table of contents
 1. [Contributors](#contributors)
-2. [Read the documentation](#documentation)
-4. [Ask for help](#help)
-5. [Available trading setups](#setups)
+2. [Ask for help](#help)
+3. [Available trading setups](#setups)
 
 <a id='contributors'></a>
 ## Contributors
 QuantInsti's EPAT content team is responsible for maintaining and contributing to this project.
-
-<a id='documentation'></a>
-## Read the documentation
-This setup can be used only for forex assets with an Interactive Brokers API. 
-- In case you want to test the trading setup quickly, please read: “Start_here_documentation”.
-- In case you want to use a customized strategy, please read: “Strategy_documentation”.
-- In case you want to learn more about the trading setup, please read: “The_trading_setup_references”.
 
 <a id='help'></a>
 ## Ask for help
