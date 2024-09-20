@@ -61,11 +61,11 @@ This setup can be used only for forex assets with an Interactive Brokers API.
 In case of questions, please write to:
 - Your support manager (if you’re a present EPAT student)
 - The alumni team (if you’re a past EPAT student and an alumnus)
-- QuantInsti coordinates you see on our “Contact Us” page: [https://www.quantinsti.com/contact-us](https://www.quantinsti.com/contact-us)
+- QuantInsti coordinates you, see on our “Contact Us” page: [https://www.quantinsti.com/contact-us](https://www.quantinsti.com/contact-us)
 
 <a id='start'></a>
 ## Quick start
-1. Download the "trading_setup_folder" zip file, unzip it, and move the unzipped folder into the “..path_to/Jts" folder.
+1. Download the "dist" and the "samples" folders, and save them in the “..path_to/Jts/setup" folder.
 2. Open an Anaconda terminal (or a terminal in Linux or Mac), then type (wait until each command is completely run):
 
     - conda create --name setup_env python=3.12
@@ -76,25 +76,24 @@ In case of questions, please write to:
       
       ![image02](res/image02.png)
       
-    - cd 'path_to/Jts/trading_setup_folder/installation_file'
-      ![image03](res/image03.png)
-    - pip install epat_trading_setup-1.0.0-py3-none-any.whl
-      ![image04](res/image04.png)
-    - cd ..
-      ![image05](res/image05.png)
     - conda install spyder
-      ![image06](res/image06.png)
+      ![image03](res/image03.png)
+      
+    - cd 'path_to/Jts'
+      ![image03](res/image04.png)
+    - pip install qi_forex_setup/dist/qi_forex_setup-1.0.0-py3-none-any.whl
+      ![image05](res/image05.png)
 
 4. Since you have already installed the IB API in 'path_to/Jts/tws_api'. Let's install it in our 'setup_env" environment. Type:
     - cd 'path_to/Jts/tws_api/source/pythonclient'
-      ![image07](res/image07.png)
+      ![image06](res/image06.png)
     - python setup.py install
-      ![image08](res/image08.png)
+      ![image07](res/image07.png)
     - cd C:\Jts
-      ![image09](res/image09.png)
+      ![image08](res/image08.png)
     - spyder
-      ![image10](res/image10.png)
-5. Once Spyder is opened, select as main folder the "trading_setup_folder" folder and open the "main.py" 
+      ![image09](res/image09.png)
+5. Once Spyder is opened, select as main folder the "setup" folder and open the "main.py" 
 6. Modify the inputs as per your trading requirements.
 7. Run the file, and
 
