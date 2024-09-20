@@ -1,0 +1,53 @@
+# Toml config file for the EPAT trading setup
+# Author: Jose Carlos Gonzales Tanaka
+# Author's LinkedIn profile: https://www.linkedin.com/in/jose-carlos-gonzales-tanaka/
+
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qi_forex_setup"
+version = "1.0.0"
+authors = [{name = "Jose Carlos Gonzales Tanaka"}]
+
+dependencies = [
+    'featuretools~=1.31.0',
+    'future~=1.0.0',
+    'numpy~=2.0.0',
+    'pandas~=2.2.2',
+    'hmmlearn~=0.3.2',
+    'lightgbm~=4.4.0',
+    'matplotlib-inline~=0.1.6',
+    'openpyxl~=3.1.5',
+    'scikit-learn~=1.5.1',
+    'scipy~=1.14.0',
+    'shap-hypetune~=0.2.7',
+    'statsmodels~=0.14.2',
+    'ta~=0.11.0',
+    'yfinance~=0.2.40',
+]
+
+description = "A trading setup to trade forex assets algorithmically using the Interactive Brokers' API"
+readme = {file = "README.md", content-type = "text/markdown"}
+requires-python = ">=3.12"
+keywords = ["trading", "trading-setup", "trading-app", "forex-assets", "Interactive-Brokers", "algorithmic-trading", "EPAT-content-team", "QuantInsti", "IB API"]
+license = {text = "LICENSE"}
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+#[tool.setuptools.packages.find]
+#exclude = ["dist/*","doc/*", "res/*", "samples/*"]
+
+[project.urls]
+"QuantInsti Homepage" = "https://www.quantinsti.com/"
+"Author's LinkedIn profile" = "https://www.linkedin.com/in/jose-carlos-gonzales-tanaka/"
+Repository = "https://github.com/quantra-go-algo/Trading-setups/tree/main/Trading_setup_for_forex_with_IB"
+"Start-here documentation" = "https://github.com/quantra-go-algo/Trading-setups/blob/main/Trading_setup_for_forex_with_IB/Start_here_documentation.md"
+"Strategy documentation" = "https://github.com/quantra-go-algo/Trading-setups/blob/main/Trading_setup_for_forex_with_IBStrategy_documentation.md"
+"Trading setup references" = "https://github.com/quantra-go-algo/Trading-setups/blob/main/Trading_setup_for_forex_with_IB/The_trading_setup_references.md"
