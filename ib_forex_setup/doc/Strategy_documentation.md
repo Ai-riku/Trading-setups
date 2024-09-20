@@ -1,9 +1,9 @@
 # An end-to-end setup to trade forex algorithmically
 
-#### This document details the strategy we’ve used to trade forex.
+#### This document details the strategy we've used to trade forex.
 ###### QuantInsti Webpage: https://www.quantinsti.com/
 
-# DISCLAIMER
+# Disclaimer
 
 #### This file is documentation only and should not be used for live trading without appropriate backtesting and tweaking of the strategy parameters.
 
