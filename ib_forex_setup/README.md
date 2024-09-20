@@ -1,6 +1,8 @@
-# Welcome to this setup to trade algorithmically.
+## Introduction
 
-This folder will contain a working trading setup you can use to learn how to trade in the financial markets algorithmically. The setup can be used to trade any forex asset using the Interactive Brokers API. 
+This folder contains a working trading setup you can use to learn how to trade in the financial markets algorithmically. The setup can be used to trade any forex asset using the Interactive Brokers API. 
+
+_@JCT, please make changes to the below part similar to what I've done in the other readme.md file_
 
 ## Disclaimer
 **This trading setup and its strategy are just a template and should not be used for live trading without appropriate backtesting and tweaking of the strategy parameters.**
