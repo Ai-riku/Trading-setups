@@ -25,7 +25,7 @@ This folder contains a working trading setup you can use to learn how to trade i
 
 ## Table of contents
 1. [Author](#author)
-2. [Setup properties](#properties)
+2. [Setup details](#details)
 3. [Read the documentation](#documentation)
 4. [Ask for help](#help)
 5. [Quick start](#start)
@@ -35,7 +35,7 @@ This folder contains a working trading setup you can use to learn how to trade i
 - [José Carlos Gonzáles Tanaka](https://www.linkedin.com/in/jose-carlos-gonzales-tanaka/)
 - QuantInsti's EPAT content team is responsible for maintaining and contributing to this project.
 
-<a id='properties'></a>
+<a id='details'></a>
 ## Setup details
 - The trading setup allows you to trade any forex asset available in Interactive Brokers.
 - You can only trade forex assets with this trading setup.
