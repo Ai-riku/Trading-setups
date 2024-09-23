@@ -5,15 +5,15 @@ This folder contains a working trading setup you can use to learn how to trade i
 ## Disclaimer
 **This trading setup and its strategy are just a template and should not be used for live trading without appropriate backtesting and tweaking of the strategy parameters.**
 
-1. Cautionary Note <a id='one'></a>
+1. Cautionary note <a id='one'></a>
     - Trading is not appropriate for all investors and carries a significant risk.
-    - Markets are very unpredictable and unstable, and past performance does not guarantee future outcomes.
+    - Markets are unpredictable, and past performance does not guarantee future outcomes.
     - The trading setup and the strategy that are provided here are merely meant to be educational; they are not meant to be regarded as specific investing advice.
-2. Limitations and Assumptions <a id='two'></a>
-    - Trading Experience: The trading setup and the strategy provided here are predicated on the supposition that traders possess the necessary expertise to comprehend the risks involved and modify both according to their unique risk tolerance and preferences.
-    - Risk Capital: Trading should only be done with risk capital, and only people who have enough of it should think about trading. It is not advisable to trade with capital that can affect your way of life or your financial commitments.
-    - Market Volatility: The trading setup and the strategy provided here are contingent upon the state of the market and may not yield anticipated results during periods of high market volatility or atypical occurrences.
-    - No Promises: Trading losses are a possibility, and neither success nor profit are certain.
+2. Limitations and assumptions <a id='two'></a>
+    - Trading experience: The trading setup and the strategy provided here are predicated on the supposition that traders possess the necessary expertise to comprehend the risks involved and modify both according to their unique risk tolerance and preferences.
+    - Risk capital: Trading should only be done with risk capital, and only people who have enough of it should think about trading. It is not advisable to trade with capital that can affect your way of life or your financial commitments.
+    - Market volatility: The trading setup and the strategy provided here are contingent upon the state of the market and may not yield anticipated results during periods of high market volatility or atypical occurrences.
+    - No promises: Trading losses are a possibility, and neither success nor profit are certain.
 3. Accountability: By utilizing this trading setup and the strategy detailed in this repository, you agree that:  <a id='three'></a>
     - You have read and understood the disclaimer and risk warning.
     - You assume full accountability for your trading and investing decisions.
