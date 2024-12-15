@@ -19,7 +19,6 @@
 3. [Setup Notes](#setup_notes)
 4. [Interactive Brokers setup requirements](#ib_requirements)
 5. [Setup of variables](#variables_setup)
-6. [Quick start](#quick_start)
 
 <a id='introduction'></a>
 ## Introduction 
