@@ -77,7 +77,7 @@ The script-based application aims to teach you how to use a ready-made IB-API-ba
 
 <a id='variables_setup'></a>
 ## Setup of variables
-Inside the “epat_trading_app_main_file” file, you can change the following variables per your trading requirements. Each variable is explained and some extra information is added.
+Inside the “main” file, you can change the following variables per your trading requirements. Each variable is explained and some extra information is added.
 
 - **account**: The account name of your IB account. This account name starts with U followed by a number for a live trading account and starts with DU followed by a number for a paper trading account. Learn more in the TBP-01 lecture.
 - **timezone**: Set the timezone of your country of residence. Please select the appropriate timezone as per the available Python time zones.
