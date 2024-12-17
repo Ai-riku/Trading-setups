@@ -85,8 +85,8 @@ In case of questions, please write to:
       ![image03](res/image03.png)
       
     - cd 'path_to/Jts'
-      ![image03](res/image04.png)
-    - pip install qi_forex_setup/dist/qi_forex_setup-1.0.0-py3-none-any.whl
+      ![image04](res/image04.png)
+    - pip install ib_forex_setup/dist/qi_forex_setup-1.0.0-py3-none-any.whl
       ![image05](res/image05.png)
 
 4. Since you have already installed the IB API in 'path_to/Jts/tws_api'. Let's install it in our 'setup_env" environment. Type:
