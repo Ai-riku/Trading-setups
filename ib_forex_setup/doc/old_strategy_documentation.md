@@ -19,20 +19,21 @@
 
 ## Table of Contents  
 1. [Introduction](#introduction)  
-2. [General Guidelines](#general-guidelines)  
-3. [Core Components](#core-components)  
+2. [General Guidelines](#general-guidelines)
+3. [Workflow of how the `strategy.py` is used by the trading setup](#workflow)
+4. [Core Components](#core-components)  
    - 3.1 [Data Preparation](#data-preparation)  
    - 3.2 [Signal Generation](#signal-generation)  
    - 3.3 [Risk Management](#risk-management)  
    - 3.4 [Model Training & Optimization](#model-training--optimization)  
-4. [Function Documentation](#function-documentation)  
+5. [Function Documentation](#function-documentation)  
    - 4.1 [`create_classifier_model(seed)`](#1-create_classifier_modelseed)  
    - 4.2 [`prepare_base_df(...)`](#2-prepare_base_dfbase_df-max_window-test_span-train_spannone)  
    - 4.3 [`get_signal(...)`](#3-get_signalbase_df-purged_window_size-embargo_period)  
    - 4.4 [`set_stop_loss_price()` & `set_take_profit_price()`](#4-set_stop_loss_price--set_take_profit_price)  
    - 4.5 [`strategy_parameter_optimization(...)`](#5-strategy_parameter_optimization)  
-5. [Dependencies](#dependencies)  
-6. [Detailed Function Modifications](#detailed-function-modifications)  
+6. [Dependencies](#dependencies)  
+7. [Detailed Function Modifications](#detailed-function-modifications)  
 
 <a id='introduction'></a>
 ## Introduction  
@@ -40,7 +41,10 @@ The `strategy.py` file is the core algorithmic trading module responsible for ge
 - **Feature Engineering**: Creates technical indicators, datetime features, and stationary transformations.  
 - **Regime Detection**: Uses HMMs to identify market states (e.g., bullish/bearish).  
 - **Risk Management**: Dynamically sets stop-loss and take-profit levels.  
-- **Model Persistence**: Saves trained models for consistent signal generation.  
+- **Model Persistence**: Saves trained models for consistent signal generation.
+- Important Notes:
+   - You can modify almost anything in the functions' definitions. There are some things you cannot change. But don't worry. Once you understand the whole documentation, you can quickly tweak it to fit your trading needs.
+   - If you want to add more inputs for the functions, you can set them in this same file or the `main.py` file. The only condition is that they must be put in either of these two files.
 
 ---
 
@@ -48,20 +52,92 @@ The `strategy.py` file is the core algorithmic trading module responsible for ge
 ## General Guidelines  
 1. **Mandatory Inputs**:  
    - The `base_df` parameter (a feature-engineered DataFrame) **cannot be removed** from any function where it appears.  
-   - Functions called by `setup_functions.py` (e.g., `get_signal`, `prepare_base_df`) must retain their core inputs/outputs to avoid runtime errors.  
+   - Functions called by `setup_functions.py` (e.g., `get_signal`, `prepare_base_df`) must retain their only the `base_df` input to avoid runtime errors. You can add more inputs or remove the existing ones as you'd like.   
 
 2. **Modifications**:  
-   - You may add new inputs/outputs to functions if they enhance strategy logic.  
+   - You may add new (or remove) inputs/outputs to functions if they enhance your own strategy logic.  
    - Avoid removing parameters marked as "Required" in the [Function Documentation](#function-documentation).  
 
 3. **Reproducibility**:  
-   - Use `seed` parameters to ensure consistent model training.  
-   - Pre-trained models are saved with date-specific filenames (e.g., `model_object_2023_10_05.pickle`).  
+   - Use `seed` parameters to ensure consistent model training. This can be either used or not. It's better to use it. In case you're not using an ML-based strategy, you can get rid of the seed in case you don't generate random numbers.
+   - (Pre-)trained models are saved with date-specific filenames (e.g., `model_object_2023_10_05.pickle`).  
 
 ---
 
+<a id='workflow'></a>
+### Workflow of how the `strategy.py` is used by the trading setup
+
+**Step-by-Step Process**:  
+
+1. **Weekly Model Optimization**  
+   - **Function**: `strategy_parameter_optimization()`  
+   - **Frequency**: Called once per week.  
+   - **Purpose**:  
+     - Trains HMM and classifier models using historical data.  
+     - Selects optimal features via Boruta-Shap.  
+     - Saves updated models and metadata to `data/models/`.  
+
+2. **Signal Generation**  
+   - This process is repeated for each period while trading as per the frequency (`data_frequency`) you choose in the `main.py` file.
+   - **Step 1**: **Prepare Feature-Engineered Data**  
+     - **Function**: `prepare_base_df()`  
+     - **Input**: Raw OHLC data.  
+     - **Output**: Processed `base_df` with (stationary) technical indicators, datetime features.  
+   - **Step 2**: **Generate Trading Signal**  
+     - **Function**: `get_signal()`  
+     - **Input**: `base_df` from `prepare_base_df()`.  
+     - **Output**:  
+       - `signal` (`-1`, or `1`).  
+       - `leverage` (position sizing multiplier).
+
+3. **Order Execution & Risk Management**  
+   - This process is repeated for each period while trading as per the frequency (`data_frequency`) you choose in the `main.py` file.
+   - These two functions are called inside the trading setup once you generate the signal with the `get_signal` function.
+   - **Step 1**: **Send Market Order**  
+     - Based on the `signal`, execute a market order (long/short).  
+   - **Step 2**: **Set Stop-Loss**  
+     - **Function**: `set_stop_loss_price()`  
+     - **Input**: `signal`, entry price, risk parameters.  
+     - **Output**: Stop-loss price (below entry for long, above entry for short).  
+   - **Step 3**: **Set Take-Profit**  
+     - **Function**: `set_take_profit_price()`  
+     - **Input**: `signal`, entry price, risk parameters.  
+     - **Output**: Take-profit price (above entry for long, below entry for short).  
+
+---
+
+### Key Workflow Notes:  
+1. **Weekly vs. Daily Tasks**:  
+   - **Weekly**: Retrain models to adapt to new market conditions.  
+   - **As per the trading frequency**: Use pre-trained models to update the `base_df` dataframe, generate the signal, and send the risk management orders.  
+
+2. **Dependencies**:  
+   - `prepare_base_df()` **is** run before `get_signal()` (the latter depends on the engineered `base_df`).  
+   - `set_stop_loss_price()` and `set_take_profit_price()` **are run after** the `signal` and entry price to calculate thresholds.  
+
+3. **Execution Flow**:  
+   ```  
+   Weekly: strategy_parameter_optimization() → Each trading period: prepare_base_df() → get_signal() → Market Order → set_stop_loss_price()/set_take_profit_price()  
+   ```  
+
+--- 
+
+### Simplified Summary Table  
+
+| Step | Function                          | Frequency       | Inputs                          | Outputs                              |  
+|------|-----------------------------------|-----------------|---------------------------------|--------------------------------------|  
+| 1    | `strategy_parameter_optimization` | Weekly          | Historical data, seed           | Trained models, feature list         |  
+| 2    | `prepare_base_df`                 | Each Trading Period | Raw OHLC data                   | Processed `base_df`, feature names   |  
+| 3    | `get_signal`                      | Each Trading Period           | `base_df`, model artifacts      | `signal`, `leverage`                 |  
+| 4    | `set_stop_loss_price`             | On-order        | `signal`, entry price, risk     | Stop-loss price                      |  
+| 5    | `set_take_profit_price`           | On-order        | `signal`, entry price, risk     | Take-profit price                    |  
+
+--- 
+
+This workflow ensures the strategy adapts weekly to market changes while generating signals (as per your chosen trading frequency) with risk management.
+
 <a id='core-components'></a>
-## Core Components  
+## Core Components of the strategy file 
 
 <a id='data-preparation'></a>
 ### Data Preparation  
