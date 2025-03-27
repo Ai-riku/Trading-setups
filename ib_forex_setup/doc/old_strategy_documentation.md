@@ -3,6 +3,8 @@
 #### This document details the strategy we've used to trade forex.
 ###### QuantInsti Webpage: https://www.quantinsti.com/
 
+**Version 1.0**  
+
 # Disclaimer
 
 #### This file is documentation only and should not be used for live trading without appropriate backtesting and tweaking of the strategy parameters.
@@ -13,22 +15,6 @@
 - You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
 - Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 
-## Table of contents
-1. [Introduction](#introduction)
-2. [Notes](#notes)
-3. [Function: create_classifier_model](#create_classifier_model)
-4. [Function: set_stop_loss_price](#set_stop_loss_price)
-5. [Function: set_take_profit_price](#set_take_profit_price)
-6. [Function: prepare_base_df](#prepare_base_df)
-7. [Function: get_signal](#get_signal)
-8. [Function: strategy_parameter_optimization](#strategy_parameter_optimization)
-
-
-<a id='introduction'></a>
-(Due to technical issues, the search service is temporarily unavailable.)
-
-# `strategy.py` Documentation  
-**Version 1.0**  
 **Last Updated**: [Insert Date]  
 
 ## Table of Contents  
