@@ -2,14 +2,16 @@
 import os
 import time
 import smtplib
+import inspect
 import numpy as np
 import pandas as pd
 import datetime as dt
 import yfinance as yf
 import strategy as stra
-import trading_functions as tf
-import ib_functions as ibf
+from ib_forex_setup import trading_functions as tf
+from ib_forex_setup import ib_functions as ibf
 from concurrent.futures import ThreadPoolExecutor
+from ibapi.order_cancel import OrderCancel
 
 def connection_monitor(app):
     ''' Check continuously if there's a need to disconnect the app '''
@@ -169,6 +171,8 @@ def prepare_downloaded_data(app, params):
     app.new_df[f'{params[0]}'].index = pd.to_datetime(app.new_df[f'{params[0]}'].index, format='%Y%m%d %H:%M:%S %Z')
     # Get rid of the timezone tag
     app.new_df[f'{params[0]}'].index = app.new_df[f'{params[0]}'].index.tz_localize(None)
+    print(f'data from {params[0]}')
+    print(app.new_df[f'{params[0]}'])
     
     print(f'{params[-1]} data is prepared...')
     app.logging.info(f'{params[-1]} data is prepared...')
@@ -182,7 +186,7 @@ def update_hist_data(app):
     # Set the number of days that have passed from the last historical data datetime up to the current period
     days_passed_number = ((app.current_period - app.historical_data.index[-1]) + dt.timedelta(days=1)).days
     # Set the days to be used to download the historical data
-    days_passed = f'{days_passed_number if days_passed_number>0 else (days_passed_number+2)} D'
+    days_passed = f'{days_passed_number if days_passed_number>1 else (days_passed_number+2)} D'
     
     # Set the params list to download the data
     params_list = [[0, days_passed, '1 min', 'BID'], [1, days_passed, '1 min', 'ASK']]
@@ -190,8 +194,12 @@ def update_hist_data(app):
     # If the app is connected
     if app.isConnected():
         # Download the historical BID and ASK data
-        with ThreadPoolExecutor(2) as executor:
-            list(executor.map(download_hist_data, [app]*len(params_list), params_list)) 
+        # with ThreadPoolExecutor(2) as executor:
+        #     list(executor.map(download_hist_data, [app]*len(params_list), params_list)) 
+        
+        # alpha from the above
+        download_hist_data(app, params_list[0]) 
+        download_hist_data(app, params_list[1]) 
     else:
         return
 
@@ -200,8 +208,9 @@ def update_hist_data(app):
         # Prepare the data
         with ThreadPoolExecutor(2) as executor:
             list(executor.map(prepare_downloaded_data, [app]*len(params_list), params_list)) 
+
     else:
-        return
+        return    
         
     # Concatenate the BID and ASK data
     df = pd.concat([app.new_df['0'],app.new_df['1']], axis=1)
@@ -286,7 +295,7 @@ def get_capital_as_per_forex_base_currency(app, capital_datetime):
             start = end - dt.timedelta(days=2)
 
             # Get the USD/contract_symbol exchange rate data
-            usd_symbol_data = yf.download(f'USD{app.contract.symbol}=X', start=start, end=end, interval='1m')
+            usd_symbol_data = yf.download(f'USD{app.contract.symbol}=X', start=start, end=end, interval='1m', group_by='ticker')['EURUSD=X']
             # Set the index as datetime and convert it to the app timezone
             usd_symbol_data.index = pd.to_datetime(usd_symbol_data.index).tz_convert(app.zone)
             # Get the USD/contract_symbol exchange rate most-recent value
@@ -295,7 +304,7 @@ def get_capital_as_per_forex_base_currency(app, capital_datetime):
             index = usd_symbol_data.index[-1]
         
             # Get the USD/account_currency exchange rate data
-            usd_acc_symbol_data = yf.download(f'USD{app.account_currency}=X', start=start, end=end, interval='1m')
+            usd_acc_symbol_data = yf.download(f'USD{app.account_currency}=X', start=start, end=end, interval='1m', group_by='ticker')['EURUSD=X']
             # Set the index as datetime and convert it to the app timezone
             usd_acc_symbol_data.index = pd.to_datetime(usd_acc_symbol_data.index).tz_convert(app.zone)
             # Get the USD/account_currency exchange rate most-recent value
@@ -356,8 +365,12 @@ def update_risk_management_orders(app):
     
     # If the open orders dataframe is not empty
     if not app.open_orders.empty:
-        # Set the last stop loss order
-        app.sl_order_id = int(app.open_orders[(app.open_orders["Symbol"]==app.contract.symbol) & (app.open_orders["OrderType"]=='STP')]["OrderId"].sort_values(ascending=True).values[-1])
+        if app.trail:
+            # Set the last stop loss order
+            app.sl_order_id = int(app.open_orders[(app.open_orders["Symbol"]==app.contract.symbol) & (app.open_orders["OrderType"]=='TRAIL')]["OrderId"].sort_values(ascending=True).values[-1])
+        else:
+            # Set the last stop loss order
+            app.sl_order_id = int(app.open_orders[(app.open_orders["Symbol"]==app.contract.symbol) & (app.open_orders["OrderType"]=='STP')]["OrderId"].sort_values(ascending=True).values[-1])
         # Set the last take profit order
         app.tp_order_id = int(app.open_orders[(app.open_orders["Symbol"]==app.contract.symbol) & (app.open_orders["OrderType"]=='LMT')]["OrderId"].sort_values(ascending=True).values[-1])
         
@@ -572,7 +585,7 @@ def cancel_previous_stop_loss_order(app):
             # If the app is connected
             if app.isConnected():
                 # Cancel the previous stop loss order
-                app.cancelOrder(app.sl_order_id, "")
+                app.cancelOrder(app.sl_order_id, OrderCancel())
                 time.sleep(1)
                 print('Canceled old stop-loss order to create a new one...')
                 app.logging.info('Canceled old stop-loss order to create a new one...')
@@ -589,7 +602,7 @@ def cancel_previous_take_profit_order(app):
             # If the app is connected
             if app.isConnected():
                 # Cancel the previous take-profit order
-                app.cancelOrder(app.tp_order_id, "")
+                app.cancelOrder(app.tp_order_id, OrderCancel())
                 time.sleep(1)
                 print('Canceled old take-profit order to create a new one...')
                 app.logging.info('Canceled old take-profit order to create a new one...')
@@ -633,18 +646,21 @@ def send_stop_loss_order(app, order_id, quantity):
     
     # If the previous position sign is different from the current signal
     if (app.previous_quantity!=0) and (np.sign(app.previous_quantity)==app.signal) and (app.open_orders.empty==False):
-        # Set the previous stop-loss target price
-        order_price = app.open_orders[app.open_orders["OrderId"]==app.sl_order_id]["AuxPrice"].values[-1]
+        if app.trail:
+            # Set a new stop-loss target price
+            order_price = stra.set_stop_loss_price(app)
+        else:
+            # Set the previous stop-loss target price
+            order_price = app.open_orders[app.open_orders["OrderId"]==app.sl_order_id]["AuxPrice"].values[-1]
         # Convert the quantity to an integer value
         quantity = int(abs(app.previous_quantity))
     # If they're equal
     else:
         # Set a new stop-loss target price
-        order_price = stra.set_stop_loss_price(app.signal, app.last_value, app.risk_management_target, app.stop_loss_multiplier)
+        order_price = stra.set_stop_loss_price(app)
         # Convert the quantity to an integer value
         quantity = int(abs(quantity))
    
-            
     # If the signal tells you to go long
     if app.signal > 0:
         # Set the stop-loss direction to sell the position
@@ -659,7 +675,7 @@ def send_stop_loss_order(app, order_id, quantity):
     # If the add value is less than or equal to 0.0001
     while add<=0.00010:
         # Send the stop-loss order
-        app.placeOrder(order_id, app.contract, ibf.stopOrder(direction, quantity, order_price))
+        app.placeOrder(order_id, app.contract, ibf.stopOrder(direction, quantity, order_price, app.trail))
         time.sleep(3)
         # Save the output errors in data as a boolean that corresponds to any error while sending the stop-loss order
         data = (321 in list(app.errors_dict.keys())) or \
@@ -701,7 +717,7 @@ def send_take_profit_order(app, order_id, quantity):
     # If they're equal
     else:
         # Set the take-profit target price
-        order_price = stra.set_take_profit_price(app.signal, app.last_value, app.risk_management_target, app.take_profit_multiplier)
+        order_price = stra.set_take_profit_price(app)
         # Convert the quantity to an integer value
         quantity = int(abs(quantity))
 
@@ -880,14 +896,19 @@ def update_cash_balance_values_for_signals(app):
     print('The cash balance signal and leverage were successfully updated...')
     app.logging.info('The cash balance signal and leverage were successfully updated...')
     
-def send_orders_as_bracket(app, order_id, quantity, mkt_order, sl_order, tp_order):
+def send_orders_as_bracket(app, order_id, quantity, mkt_order, sl_order, tp_order, rm_quantity=None):
     ''' Function to send the orders as a bracket'''
     
     # Send a market and risk management orders
     if (mkt_order==True) and (sl_order==True) and (tp_order==True):
         send_market_order(app, order_id, quantity)
-        send_stop_loss_order(app, order_id+1, quantity)
-        send_take_profit_order(app, order_id+2, quantity)
+        if rm_quantity is None:
+            send_stop_loss_order(app, order_id+1, quantity)
+            send_take_profit_order(app, order_id+2, quantity)
+        else:
+            send_stop_loss_order(app, order_id+1, rm_quantity)
+            send_take_profit_order(app, order_id+2, rm_quantity)
+            
     # Send only the risk management orders
     elif (mkt_order==False) and (sl_order==True) and (tp_order==True):
         send_stop_loss_order(app, order_id, quantity)
@@ -903,7 +924,14 @@ def send_orders(app):
 
     print('Sending the corresponding orders if needed...')
     app.logging.info('Sending the corresponding orders if needed...')
-
+    
+    if len(app.cash_balance.loc[:, 'leverage'].index) != 0:
+        app.previous_leverage = app.cash_balance['leverage'].iloc[-1]
+        app.previous_signal = app.cash_balance['signal'].iloc[-1]
+    else:
+        app.previous_leverage = 0.0
+        app.previous_signal = 0.0
+        
     # Update the previous trading information
     update_trading_info(app)  
     # Update the previous and current positions quantities
@@ -924,133 +952,269 @@ def send_orders(app):
     print('='*50)
     print('='*50)
     print(f'previous quantity is {app.previous_quantity}')
+    print(f'previous signal is {app.previous_signal}')
     print(f'signal is {app.signal}')
+    print(f'previous leverage is {app.previous_leverage}')
     print(f'leverage is {app.leverage}')
-    print(f'current quantity is {app.current_quantity}')
+    print(f'current quantity is {app.signal*app.current_quantity}')
     print('='*50)
     print('='*50)
         
-    # If the previous position is short and the current signal is to go long
-    if app.previous_quantity > 0 and app.signal > 0:
+    if (app.leverage == 0.0):
+        print('Leverage is 0.0. There will be no orders to send...')
+        app.logging.info('Leverage is 0.0. There will be no orders to send...')
         
-        # Set the executors list
-        executors_list = []
-        # Append the functions to be used in parallel
-        with ThreadPoolExecutor(2) as executor:
-            # Cancel the previous risk management orders
-            executors_list.append(executor.submit(cancel_risk_management_previous_orders, app))
-            # Send the new risk management orders
-            executors_list.append(executor.submit(send_orders_as_bracket, app, order_id, app.previous_quantity, False, True, True))
-
-        # Run the functions in parallel
-        for x in executors_list:
-            x.result()
-
-        print('Only the new risk management orders were sent...')
-        app.logging.info('Only the new risk management orders were sent...')
-        
-    elif app.previous_quantity > 0 and app.signal < 0:
+    elif app.previous_leverage == app.leverage:
+        # If the previous position is short and the current signal is to go long
+        if app.previous_quantity > 0 and app.signal > 0:
             
-        new_quantity = int(abs(app.previous_quantity) + app.current_quantity)
-
-        print(f'new quantity is {new_quantity}')
-
-        # Set the executors list
-        executors_list = []
-        # Append the functions to be used in parallel
-        with ThreadPoolExecutor(2) as executor:
-            # Cancel the previous risk management orders
-            executors_list.append(executor.submit(cancel_risk_management_previous_orders, app))
-            # Short-sell the asset and send the risk management orders
-            executors_list.append(executor.submit(send_orders_as_bracket, app, order_id, new_quantity, True, True, True))
-
-        # Run the functions in parallel
-        for x in executors_list:
-            x.result()
+            # Set the executors list
+            executors_list = []
+            # Append the functions to be used in parallel
+            with ThreadPoolExecutor(2) as executor:
+                # Cancel the previous risk management orders
+                executors_list.append(executor.submit(cancel_risk_management_previous_orders, app))
+                # Send the new risk management orders
+                executors_list.append(executor.submit(send_orders_as_bracket, app, order_id, app.previous_quantity, False, True, True))
+    
+            # Run the functions in parallel
+            for x in executors_list:
+                x.result()
+    
+            print('Only the new risk management orders were sent...')
+            app.logging.info('Only the new risk management orders were sent...')
             
-        print('The market and the new risk management orders were sent...')
-        app.logging.info('The market and the new risk management orders were sent...')
+        elif app.previous_quantity > 0 and app.signal < 0:
+                
+            new_quantity = int(abs(app.previous_quantity) + app.current_quantity)
+    
+            print(f'new quantity is {new_quantity}')
+    
+            # Set the executors list
+            executors_list = []
+            # Append the functions to be used in parallel
+            with ThreadPoolExecutor(2) as executor:
+                # Cancel the previous risk management orders
+                executors_list.append(executor.submit(cancel_risk_management_previous_orders, app))
+                # Short-sell the asset and send the risk management orders
+                executors_list.append(executor.submit(send_orders_as_bracket, app, order_id, new_quantity, True, True, True, app.current_quantity))
+    
+            # Run the functions in parallel
+            for x in executors_list:
+                x.result()
+                
+            print('The market and the new risk management orders were sent...')
+            app.logging.info('The market and the new risk management orders were sent...')
+            
+        elif app.previous_quantity < 0 and app.signal < 0:
+            
+            # Set the executors list
+            executors_list = []
+            # Append the functions to be used in parallel
+            with ThreadPoolExecutor(2) as executor:
+                # Cancel the previous risk management orders
+                executors_list.append(executor.submit(cancel_risk_management_previous_orders, app))
+                # Send the new risk management orders
+                executors_list.append(executor.submit(send_orders_as_bracket, app, order_id, app.previous_quantity, False, True, True))
+    
+            # Run the functions in parallel
+            for x in executors_list:
+                x.result()
+    
+            print('Only the new risk management orders were sent...')
+            app.logging.info('Only the new risk management orders were sent...')
+            
+        elif app.previous_quantity < 0 and app.signal > 0:
+                        
+            new_quantity = int(abs(app.previous_quantity) + app.current_quantity)
+    
+            print(f'new quantity is {new_quantity}')
+            # Set the executors list
+            executors_list = []
+            # Append the functions to be used in parallel
+            with ThreadPoolExecutor(2) as executor:
+                # Cancel the previous risk management orders
+                executors_list.append(executor.submit(cancel_risk_management_previous_orders, app))
+                # Buy the asset and send the risk management orders
+                executors_list.append(executor.submit(send_orders_as_bracket, app, order_id, new_quantity, True, True, True, app.current_quantity))
+    
+            # Run the functions in parallel
+            for x in executors_list:
+                x.result()
+                
+            print('The market and the new risk management orders were sent...')
+            app.logging.info('The market and the new risk management orders were sent...')
+            
+        elif app.previous_quantity != 0 and app.signal == 0:
+            
+            # Set the executors list
+            executors_list = []
+            # Append the functions to be used in parallel
+            with ThreadPoolExecutor(2) as executor:
+                # Cancel the previous risk management orders
+                executors_list.append(executor.submit(cancel_risk_management_previous_orders, app))
+                # Close the previous position
+                executors_list.append(executor.submit(send_orders_as_bracket, app, order_id, app.previous_quantity, True, False, False))
+    
+            # Run the functions in parallel
+            for x in executors_list:
+                x.result()
+    
+            print('A market order was sent to close the previous position...')
+            app.logging.info('A market order was sent to close the previous position...')
+            
+        elif app.previous_quantity == 0 and app.signal != 0:
+            
+            # Set the executors list
+            executors_list = []
+            # Append the functions to be used in parallel
+            with ThreadPoolExecutor(2) as executor:
+                # Cancel the previous risk management orders
+                executors_list.append(executor.submit(cancel_risk_management_previous_orders, app))
+                # Buy the asset and send the risk management orders
+                executors_list.append(executor.submit(send_orders_as_bracket, app, order_id, app.current_quantity, True, True, True))
+    
+            # Run the functions in parallel
+            for x in executors_list:
+                x.result()
+    
+            print('A new position was just opened together with new risk management orders...')
+            app.logging.info('A new position was just opened together with new risk management orders...')
         
-    elif app.previous_quantity < 0 and app.signal < 0:
-        
-        # Set the executors list
-        executors_list = []
-        # Append the functions to be used in parallel
-        with ThreadPoolExecutor(2) as executor:
-            # Cancel the previous risk management orders
-            executors_list.append(executor.submit(cancel_risk_management_previous_orders, app))
-            # Send the new risk management orders
-            executors_list.append(executor.submit(send_orders_as_bracket, app, order_id, app.previous_quantity, False, True, True))
-
-        # Run the functions in parallel
-        for x in executors_list:
-            x.result()
-
-        print('Only the new risk management orders were sent...')
-        app.logging.info('Only the new risk management orders were sent...')
-        
-    elif app.previous_quantity < 0 and app.signal > 0:
+        # Update the signal and leverage values in the cash balance dataframe
+        update_cash_balance_values_for_signals(app)
+            
+        # Update the trading information
+        update_trading_info(app)  
                     
-        new_quantity = int(abs(app.previous_quantity) + app.current_quantity)
-
-        print(f'new quantity is {new_quantity}')
-        # Set the executors list
-        executors_list = []
-        # Append the functions to be used in parallel
-        with ThreadPoolExecutor(2) as executor:
-            # Cancel the previous risk management orders
-            executors_list.append(executor.submit(cancel_risk_management_previous_orders, app))
-            # Buy the asset and send the risk management orders
-            executors_list.append(executor.submit(send_orders_as_bracket, app, order_id, new_quantity, True, True, True))
-
-        # Run the functions in parallel
-        for x in executors_list:
-            x.result()
+    else:
+        if app.previous_quantity > 0 and app.signal > 0:
             
-        print('The market and the new risk management orders were sent...')
-        app.logging.info('The market and the new risk management orders were sent...')
+            new_quantity = (app.leverage - app.previous_leverage)*app.previous_quantity/app.previous_leverage
+            
+            if new_quantity > 0:            
+                print(f'extra quantity is {new_quantity}')
         
-    elif app.previous_quantity != 0 and app.signal == 0:
+                # Send the new risk management orders
+                send_orders_as_bracket(app, order_id, int(new_quantity), True, True, True, int(new_quantity+app.previous_quantity))
+                    
+            else:
+                print(f'reduced quantity is {new_quantity}')
+                
+                app.signal = -1.0
         
-        # Set the executors list
-        executors_list = []
-        # Append the functions to be used in parallel
-        with ThreadPoolExecutor(2) as executor:
-            # Cancel the previous risk management orders
-            executors_list.append(executor.submit(cancel_risk_management_previous_orders, app))
-            # Close the previous position
-            executors_list.append(executor.submit(send_orders_as_bracket, app, order_id, app.previous_quantity, True, False, False))
+                # Send the new risk management orders
+                send_orders_as_bracket(app, order_id, abs(new_quantity), True, True, True, int(app.previous_quantity-new_quantity))
+    
+            print('The long position has been increased as per the increased leverage...')
+            app.logging.info('The long position has been increased as per the increased leverage...')
+            
+        elif app.previous_quantity > 0 and app.signal < 0:
+                
+            new_quantity = int(abs(app.previous_quantity) + app.current_quantity)
+    
+            print(f'new quantity is {new_quantity}')
+    
+            # Set the executors list
+            executors_list = []
+            # Append the functions to be used in parallel
+            with ThreadPoolExecutor(2) as executor:
+                # Cancel the previous risk management orders
+                executors_list.append(executor.submit(cancel_risk_management_previous_orders, app))
+                # Short-sell the asset and send the risk management orders
+                executors_list.append(executor.submit(send_orders_as_bracket, app, order_id, new_quantity, True, True, True, int(app.current_quantity)))
+    
+            # Run the functions in parallel
+            for x in executors_list:
+                x.result()
+                
+            print('The market and the new risk management orders were sent...')
+            app.logging.info('The market and the new risk management orders were sent...')
+            
+        elif app.previous_quantity < 0 and app.signal < 0:
+            
+            new_quantity = (app.leverage - app.previous_leverage)*app.previous_quantity/app.previous_leverage
+            
+            if new_quantity < 0:            
+                print(f'extra quantity is {new_quantity}')
+        
+                # Send the new risk management orders
+                send_orders_as_bracket(app, order_id, abs(new_quantity), True, True, True, int(new_quantity+app.previous_quantity))
+                    
+            else:
+                print(f'reduced quantity is {new_quantity}')
+                
+                app.signal = 1.0
+        
+                # Send the new risk management orders
+                send_orders_as_bracket(app, order_id, new_quantity, True, True, True, int(app.previous_quantity-new_quantity))
+    
+            print('The long position has been increased as per the increased leverage...')
+            app.logging.info('The long position has been increased as per the increased leverage...')
+            
+            
+        elif app.previous_quantity < 0 and app.signal > 0:
+                        
+            new_quantity = int(abs(app.previous_quantity) + app.current_quantity)
+    
+            print(f'new quantity is {new_quantity}')
+            # Set the executors list
+            executors_list = []
+            # Append the functions to be used in parallel
+            with ThreadPoolExecutor(2) as executor:
+                # Cancel the previous risk management orders
+                executors_list.append(executor.submit(cancel_risk_management_previous_orders, app))
+                # Buy the asset and send the risk management orders
+                executors_list.append(executor.submit(send_orders_as_bracket, app, order_id, new_quantity, True, True, True, int(app.current_quantity)))
+    
+            # Run the functions in parallel
+            for x in executors_list:
+                x.result()
+                
+            print('The market and the new risk management orders were sent...')
+            app.logging.info('The market and the new risk management orders were sent...')
+            
+        elif app.previous_quantity != 0 and app.signal == 0:
+            
+            # Set the executors list
+            executors_list = []
+            # Append the functions to be used in parallel
+            with ThreadPoolExecutor(2) as executor:
+                # Cancel the previous risk management orders
+                executors_list.append(executor.submit(cancel_risk_management_previous_orders, app))
+                # Close the previous position
+                executors_list.append(executor.submit(send_orders_as_bracket, app, order_id, app.previous_quantity, True, False, False))
+    
+            # Run the functions in parallel
+            for x in executors_list:
+                x.result()
+    
+            print('A market order was sent to close the previous position...')
+            app.logging.info('A market order was sent to close the previous position...')
+            
+        elif app.previous_quantity == 0 and app.signal != 0:
+            
+            # Set the executors list
+            executors_list = []
+            # Append the functions to be used in parallel
+            with ThreadPoolExecutor(2) as executor:
+                # Cancel the previous risk management orders
+                executors_list.append(executor.submit(cancel_risk_management_previous_orders, app))
+                # Buy the asset and send the risk management orders
+                executors_list.append(executor.submit(send_orders_as_bracket, app, order_id, app.current_quantity, True, True, True))
+    
+            # Run the functions in parallel
+            for x in executors_list:
+                x.result()
+    
+            print('A new position was just opened together with new risk management orders...')
+            app.logging.info('A new position was just opened together with new risk management orders...')
 
-        # Run the functions in parallel
-        for x in executors_list:
-            x.result()
-
-        print('A market order was sent to close the previous position...')
-        app.logging.info('A market order was sent to close the previous position...')
-        
-    elif app.previous_quantity == 0 and app.signal != 0:
-        
-        # Set the executors list
-        executors_list = []
-        # Append the functions to be used in parallel
-        with ThreadPoolExecutor(2) as executor:
-            # Cancel the previous risk management orders
-            executors_list.append(executor.submit(cancel_risk_management_previous_orders, app))
-            # Buy the asset and send the risk management orders
-            executors_list.append(executor.submit(send_orders_as_bracket, app, order_id, app.current_quantity, True, True, True))
-
-        # Run the functions in parallel
-        for x in executors_list:
-            x.result()
-
-        print('A new position was just opened together with new risk management orders...')
-        app.logging.info('A new position was just opened together with new risk management orders...')
-        
-    # Update the signal and leverage values in the cash balance dataframe
-    update_cash_balance_values_for_signals(app)
-        
-    # Update the trading information
-    update_trading_info(app)  
+        # Update the signal and leverage values in the cash balance dataframe
+        update_cash_balance_values_for_signals(app)
+            
+        # Update the trading information
+        update_trading_info(app)  
                     
 def strategy(app): 
     ''' Function to get the strategy run'''
@@ -1061,6 +1225,36 @@ def strategy(app):
     # Set a default dataframe
     base_df = pd.DataFrame()
     
+    # Get the variables set in the main file
+    variables = tf.extract_variables('main.py')
+    
+    # The historical minute-frequency data address
+    historical_minute_data_address = f'data/app_{app.ticker}_df.csv'
+
+    variables['market_open_time'] = app.market_open_time
+    variables['historical_minute_data_address'] = historical_minute_data_address
+    variables['test_span'] = app.test_span
+        
+    # Get the inputs of the  function
+    signature = inspect.signature(stra.prepare_base_df)
+    
+    # Get the attributes of the trading setup
+    setup_variables = vars(app)
+    
+    # Get the prepare_base_df function's return variables
+    return_variables = tf.get_return_variable_names("strategy.py", "prepare_base_df")
+    
+    # Set a list for the function input parameters
+    prepare_base_func_params = list()
+    # Set the for loop to iterate through each input of the function
+    for name, param in signature.parameters.items():
+        # If the input of the function is located in the setup dictionary of attributes
+        if name in setup_variables.keys():
+            # Save the key value in the list
+            prepare_base_func_params.append(setup_variables[name])
+        else:
+            prepare_base_func_params.append(variables[name])
+            
     # If the base_df file exists
     if os.path.exists(app.base_df_address):
         
@@ -1083,9 +1277,11 @@ def strategy(app):
                 elif app.frequency_string == 'min':
                     train_span = (60//app.frequency_number)*24*((app.current_period - base_df.index[-1]) + dt.timedelta(days=1)).days + 500
 
-                # Drop index duplicates from 
+                prepare_base_func_params['train_span'] = train_span
+
                 # Create the new shorter base_df
-                base_df_to_concat, _, _ = stra.prepare_base_df(app.historical_data, app.max_window, app.test_span, train_span, app.scalable_features)
+                results = stra.prepare_base_df(*prepare_base_func_params)
+                base_df_to_concat = results[return_variables.index('base_df')]
                 
                 # Concat the shorter base_df with the whole one
                 base_df.loc[base_df_to_concat.index, base_df_to_concat.columns] = base_df_to_concat
@@ -1110,7 +1306,8 @@ def strategy(app):
         
         if app.isConnected():
             # Create the new base_df
-            base_df, _, _ = stra.prepare_base_df(app.historical_data, app.max_window, app.test_span, app.train_span)          
+            results = stra.prepare_base_df(*prepare_base_func_params)
+            base_df = results[return_variables.index('base_df')]
             # Sort the base_df based on its index
             base_df.index = pd.to_datetime(base_df.index)
             # Drop duplicates
@@ -1122,7 +1319,34 @@ def strategy(app):
         
     # Get the signal value for the current period
     if app.isConnected():
-        app.signal = stra.get_signal(app.logging, app.market_open_time, base_df, app.final_input_features, app.purged_window_size, app.embargo_period)
+        
+        print('Getting the current signal...')
+        app.logging.info('Getting the current signal...')
+        
+        # Save the base_df in the app
+        app.base_df = base_df.copy()
+        
+        # Get the prepare_base_df function's return variables
+        return_variables = tf.get_return_variable_names("strategy.py", "get_signal")
+    
+        results = stra.get_signal(app)
+        
+        # Set the signal
+        app.signal = results[return_variables.index('signal')]
+
+        if 'leverage' in return_variables:
+            # Set the leverage
+            app.leverage = results[return_variables.index('leverage')]
+        elif app.leverage is None:
+            # Set the leverage
+            app.leverage = 1.0
+        elif 'leverage' in variables.keys():
+            # Set the signal
+            app.leverage = variables['leverage']
+        
+        print('The current signal was successfully created...')
+        app.logging.info('The current signal was successfully created...')
+    
     else:
         return
             
@@ -1225,6 +1449,9 @@ def run_strategy(app):
     if app.isConnected():
         # Send the orders
         send_orders(app)
+        print("The strategy, the signal and sending the orders were successfully run...")
+        app.logging.info("The strategy, the signal and sending the orders were successfully run...")
+    
         
     # Save the total seconds spent while trading in each period
     app.app_time_spent['seconds'].iloc[0] = (dt.datetime.now() - app.app_start_time).total_seconds() + 3
@@ -1236,9 +1463,6 @@ def run_strategy(app):
 
     # Tell the app the strategy is done so it can be disconnected       
     app.strategy_end = True
-    
-    print("The strategy, the signal and sending the orders were successfully run...")
-    app.logging.info("The strategy, the signal and sending the orders were successfully run...")
     
 def run_strategy_for_the_period(app):
     """ Function to run the whole strategy together with the connection monitor function"""
@@ -1350,8 +1574,12 @@ def send_email(app):
         try:
             # Get the market id 
             mkt_order_id = int(app.open_orders[(app.open_orders["Symbol"]==app.contract.symbol) & (app.open_orders["OrderType"]=='MKT')]["OrderId"].sort_values(ascending=True).values[-1])
-            # Get the stop loss id 
-            sl_order_id = int(app.open_orders[(app.open_orders["Symbol"]==app.contract.symbol) & (app.open_orders["OrderType"]=='STP')]["OrderId"].sort_values(ascending=True).values[-1])
+            if app.trail:
+                # Get the trailing stop loss id 
+                sl_order_id = int(app.open_orders[(app.open_orders["Symbol"]==app.contract.symbol) & (app.open_orders["OrderType"]=='TRAIL')]["OrderId"].sort_values(ascending=True).values[-1])
+            else:
+                # Get the stop loss id 
+                sl_order_id = int(app.open_orders[(app.open_orders["Symbol"]==app.contract.symbol) & (app.open_orders["OrderType"]=='STP')]["OrderId"].sort_values(ascending=True).values[-1])
             # Get the take profit id 
             tp_order_id = int(app.open_orders[(app.open_orders["Symbol"]==app.contract.symbol) & (app.open_orders["OrderType"]=='LMT')]["OrderId"].sort_values(ascending=True).values[-1])
             
@@ -1420,4 +1648,3 @@ def send_email(app):
 def stop(app):
     print('Disconnecting...')
     app.disconnect()
-
