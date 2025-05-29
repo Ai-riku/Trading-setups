@@ -1,21 +1,22 @@
 # Import the necessary libraries
+import os
 import time
 import numpy as np
 import pandas as pd
 import datetime as dt
-import ib_functions as ibf
+from ib_forex_setup import ib_functions as ibf
 from threading import Event
-import trading_functions as tf
+from ib_forex_setup import trading_functions as tf
 from ibapi.client import EClient
 from ibapi.wrapper import EWrapper
 
 # Define trading app class - inherits from EClient and EWrapper
 class trading_app(EClient, EWrapper):
-    
+                    
     # Initialize the class - and inherited classes
-    def __init__(self, logging, account, account_currency, symbol, timezone, data_frequency, historical_data_address, base_df_address, leverage, risk_management_target, stop_loss_multiplier, take_profit_multiplier, 
-                 purged_window_size, embargo_period, market_open_time, market_close_time, 
-                 previous_day_start_datetime, trading_day_end_datetime, day_end_datetime, current_period, previous_period, next_period, train_span, test_span, max_window):
+    def __init__(self, logging, account, account_currency, symbol, timezone, data_frequency, historical_data_address, base_df_address, 
+                 market_open_time, market_close_time, 
+                 previous_day_start_datetime, trading_day_end_datetime, day_end_datetime, current_period, previous_period, next_period, train_span, test_span, trail):
         
         # Initialize the class from parents
         EClient.__init__(self, self)
@@ -62,12 +63,6 @@ class trading_app(EClient, EWrapper):
         self.train_span = train_span
         # Set the test span for the trading app
         self.test_span = test_span
-        # Set the maximum window to compute the technical indicators
-        self.max_window = max_window
-        # Set the purged window size to create the base_df
-        self.purged_window_size = purged_window_size
-        # Set the embargo period to create the base_df
-        self.embargo_period = embargo_period
         
         # Get the data frequency number and time string from the data_frequency string
         self.frequency_number, self.frequency_string = tf.get_data_frequency_values(data_frequency)
@@ -131,21 +126,14 @@ class trading_app(EClient, EWrapper):
         # Create a dictionary to save the app output errors
         self.errors_dict = {}
         
-        # Set the risk management target return
-        self.risk_management_target = risk_management_target
-        # Set the stop loss multiplier
-        self.stop_loss_multiplier = stop_loss_multiplier
-        # Set the stop loss multiplier
-        self.take_profit_multiplier = take_profit_multiplier
-        # Set the leverage to be used to trade
-        self.leverage = leverage
+        # Load the optimal features dataframe in case the trader chose to work with an ML-based strategy
+        if os.path.exists('data/models/optimal_features_df.xlsx'):            
+            features_df = pd.read_excel('data/models/optimal_features_df.xlsx', index_col=0)
+            # Set all the features to prepare the data
+            self.final_input_features = features_df['final_features'].dropna().tolist()
+        else:
+            print('There were no final features saved in the strategy_parameter_optimization function')
         
-        # Load the optimal features dataframe
-        features_df = pd.read_excel('data/optimal_features_df.xlsx', index_col=0)
-        # Set the scalable features to prepare the data
-        self.scalable_features = features_df['scalable_features'].dropna().tolist()
-        # Set all the features to prepare the data
-        self.final_input_features = features_df['final_features'].dropna().tolist()
         # Set the stop loss order id to NaN             
         self.sl_order_id = np.nan
         # Set the take profit order id to NaN             
@@ -178,6 +166,9 @@ class trading_app(EClient, EWrapper):
         self.temp_exec_df = pd.DataFrame()
         self.temp_comm_df = pd.DataFrame()  
         self.temp_pos_df = pd.DataFrame() 
+        
+        # Set the trailing stop loss boolean
+        self.trail = trail
         
         # Set the strategy end to False
         self.strategy_end = False
