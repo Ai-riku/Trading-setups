@@ -21,20 +21,28 @@ def marketOrder(direction,quantity):
     order.firmQuoteOnly = 0        
     return order
 
-def stopOrder(direction,quantity,st_price):
+def stopOrder(direction,quantity,st_price,trail):
     ''' Function to set the stop loss order object'''
     # Set the variable as an Order object
     order = Order()
     # Set the direction of the stop loss order: Buy or Sell
     order.action = direction
-    # Set the order as a stop loss one
-    order.orderType = "STP"
     # Set the quantity
     order.totalQuantity = quantity
     # Transmit the order
     order.transmit = True
-    # Set the stop loss breach price
-    order.auxPrice = st_price
+    if trail == False:
+        # Set the order as a stop loss one
+        order.orderType = "STP"
+        # Set the stop loss breach price
+        order.auxPrice = st_price
+    elif trail == True:
+        # Set the order as a stop loss one
+        order.orderType = "TRAIL"
+        # Set the stop loss breach price
+        order.auxPrice = st_price
+        # Set the trailing stop loss breach price
+        order.trailStopPrice = st_price
     # Trade with electronic quotes
     order.eTradeOnly = 0
     # Trade with firm quotes
