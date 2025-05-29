@@ -6,9 +6,9 @@ from threading import Event
 from threading import Thread
 from datetime import datetime
 from concurrent import futures
-import trading_functions as tf
+from ib_forex_setup import trading_functions as tf
 from ibapi.client import EClient
-import ib_functions as ibf
+from ib_forex_setup import ib_functions as ibf
 from ibapi.wrapper import EWrapper
 
 import warnings
@@ -375,26 +375,62 @@ class app_for_download_data(EWrapper, EClient):
 # -------------------------x-----------------------x--------------------------#
 def update_historical_resampled_data(historical_minute_data, historical_data_address, train_span, data_frequency, market_open_time):
     
-    print('Resample of historical minute data as per the data frequency is in process...')
     # Set the hour string to resample the data
     hour_string = str(market_open_time.hour) if (market_open_time.hour)>=10 else '0'+str(market_open_time.hour)
     minute_string = str(market_open_time.minute) if (market_open_time.minute)>=10 else '0'+str(market_open_time.minute)
 
     # If the historical minute data variable is a dataframe
     if isinstance(historical_minute_data, pd.DataFrame):
-        # Resample the data as per the trading frequency
-        historical_data = tf.resample_df(tf.get_mid_series(historical_minute_data), data_frequency, start=f'{hour_string}h{minute_string}min')
+        try:
+            historical_resampled_data = pd.read_csv('data/'+historical_data_address, index_col=0)
+            historical_resampled_data.index = pd.to_datetime(historical_resampled_data.index)
+            if (historical_minute_data.index[-1].day==historical_resampled_data.index[-1].day) or \
+                (historical_minute_data.index[-1].day+1==historical_resampled_data.index[-1].day):
+                print('Resampling was already done...')
+            else:
+                print('Resample of historical minute data as per the data frequency is in process...')
+                # Resample the data as per the trading frequency
+                historical_data = tf.resample_df(tf.get_mid_series(historical_minute_data), data_frequency, start=f'{hour_string}h{minute_string}min')
+
+                # Subset the resample historical data to "train_span observations
+                historical_data.tail(train_span).to_csv('data/'+historical_data_address)
+    
+        except:
+
+            # Resample the data as per the trading frequency
+            historical_data = tf.resample_df(tf.get_mid_series(historical_minute_data), data_frequency, start=f'{hour_string}h{minute_string}min')
+
+            # Subset the resample historical data to "train_span observations
+            historical_data.tail(train_span).to_csv('data/'+historical_data_address)
+    
     # If it's a string address
     else:
         # Import the historical minute-frequency data
         historical_minute_data = pd.read_csv(historical_minute_data, index_col=0)
         # Convert the index to datetime type
         historical_minute_data.index = pd.to_datetime(historical_minute_data.index)
-        # Resample the data as per the trading frequency
-        historical_data = tf.resample_df(tf.get_mid_series(historical_minute_data), data_frequency, start=f'{hour_string}h{minute_string}min')
+
+        try:
+            historical_resampled_data = pd.read_csv('data/'+historical_data_address, index_col=0)
+            historical_resampled_data.index = pd.to_datetime(historical_resampled_data.index)
+            if (historical_minute_data.index[-1].day==historical_resampled_data.index[-1].day) or \
+                (historical_minute_data.index[-1].day+1==historical_resampled_data.index[-1].day):
+                print('Resampling was already done...')
+            else:
+                print('Resample of historical minute data as per the data frequency is in process...')
+                # Resample the data as per the trading frequency
+                historical_data = tf.resample_df(tf.get_mid_series(historical_minute_data), data_frequency, start=f'{hour_string}h{minute_string}min')
+
+                # Subset the resample historical data to "train_span observations
+                historical_data.tail(train_span).to_csv('data/'+historical_data_address)
+        
+        except:
+            print('Resample of historical minute data as per the data frequency is in process...')
+            # Resample the data as per the trading frequency
+            historical_data = tf.resample_df(tf.get_mid_series(historical_minute_data), data_frequency, start=f'{hour_string}h{minute_string}min')
   
-    # Subset the resample historical data to "train_span observations
-    historical_data.tail(train_span).to_csv('data/'+historical_data_address)
+            # Subset the resample historical data to "train_span observations
+            historical_data.tail(train_span).to_csv('data/'+historical_data_address)
     
     print('Resample of historical minute data as per the data frequency is completed...')
     
