@@ -47,7 +47,7 @@ exclude = [
     "res*",
     "samples*",
     "previous_versions*",
-    "changelog*"
+    "Changelog*"
 ]
 
 
