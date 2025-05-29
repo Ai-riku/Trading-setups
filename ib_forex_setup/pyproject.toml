@@ -45,7 +45,7 @@ exclude = [
     "dist*",
     "doc*",
     "res*",
-    "samples*",
+    "user_config*",
     "previous_versions*",
     "Changelog*"
 ]
