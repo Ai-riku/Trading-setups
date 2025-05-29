@@ -171,8 +171,6 @@ def prepare_downloaded_data(app, params):
     app.new_df[f'{params[0]}'].index = pd.to_datetime(app.new_df[f'{params[0]}'].index, format='%Y%m%d %H:%M:%S %Z')
     # Get rid of the timezone tag
     app.new_df[f'{params[0]}'].index = app.new_df[f'{params[0]}'].index.tz_localize(None)
-    print(f'data from {params[0]}')
-    print(app.new_df[f'{params[0]}'])
     
     print(f'{params[-1]} data is prepared...')
     app.logging.info(f'{params[-1]} data is prepared...')
