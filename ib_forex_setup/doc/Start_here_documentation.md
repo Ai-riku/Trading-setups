@@ -3,6 +3,11 @@
 #### This is your “Start here” document to set up your system for trading forex algorithmically.
 ###### QuantInsti Webpage: https://www.quantinsti.com/
 
+**Version 1.0.1**
+**Last Updated**: 2025-05-28
+
+-----
+
 ## Disclaimer
 
 #### This file is documentation only and should not be used for live trading without appropriate backtesting and tweaking of the strategy parameters.
@@ -89,17 +94,12 @@ Inside the “main” file, you can change the following variables per your trad
 - **base_df_address**: The string of the dataframe used to fit the machine learning model. Set the file name and address at your convenience.
 - **train_span**: Set the train data number of observations to be used to fit the machine learning model. Please check the historical_data_address file to specify a number equal to or lower than the maximum data observations available in the historical dataframe file.
 - **test_span_days**: To optimize the strategy, specify how many days you want to use as a validation dataset. The higher the trading frequency, the higher this number should be. For a daily frequency, set 22 days as a monthly validation dataset.
-- **max_window**: The machine learning model uses technical indicators as input features. Some of these technical indicators use rolling windows to compute them. Set this variable as the maximum window to calculate the technical indicators.
 - **host**: Set the host for the trading app. Learn more in the TBP-01 lecture.
 - **client_id**: Set the client ID for the trading app. Learn more in the TBP-01 lecture.
 - **seed**: Set the seed to create a list of random seeds for the machine learning strategy. Each seed provides a unique machine-learning model to be used for backtesting it. The best model is chosen based on the machine learning model that gives the best Sharpe ratio of its strategy returns.
-- **random_seeds**: Set the random seeds to be used as a list of model seed parameters. If you want to vary the machine-learning model per other parameters, modify the strategy_file file. In the main file, the default is 5 seeds to be used. If you want to add more, please change that number. Be careful about how much time the backtesting lasts. The backtesting is done so that it only optimizes on the weekend.
-- **purged_window_size**: You can set the purge window size at your convenience. For more information, please refer to the MLT-04 lecture.
-- **embargo_period**: Set the purge embargo period at your convenience. Please refer to the MLT-04 lecture to learn more.
-- **leverage**: Set the leverage you will use at your trading convenience. If you want to create a dynamic leverage position, please change the strategy_file file.
-- **risk_management_target**: Set the risk management target. This should be an absolute price return target. If you want to create a dynamic target position, please change the strategy_file file.
-- **stop_loss_multiplier**: This should be an integer or float target that will multiply the risk_management target for the stop-loss orders at your convenience. If you want to create a dynamic multiplier target, please change the strategy_file file.
-- **take_profit_multiplier**: This should be an integer or float target that multiplies the risk_management target for the take-profit orders at your convenience. If you want to create a dynamic multiplier target, please change the strategy_file file.
 - **smtp_username**: Your Gmail to be used from which you’ll send the trading information per the above trading data frequency.
 - **to_email**: The email (it can be any email service: Gmail, Outlook, etc.) to send the trading information per the above trading data frequency.
 - **password**: The app password that was obtained from Google Gmail. You need to allow the app password in Google: https://support.google.com/mail/answer/185833?hl=en. Once you access the link, click on the link “Create and manage your app passwords”. Then, type your email and password and you’ll be directed to the “App passwords” webpage. There, you type an app name, it can be any name, and then you’ll be given a 12-letter-long password. Copy that password and paste it into this variable.
+
+In the same "main" file, you can add optional variables per your trading requirements. In this case we optionally added the following:
+- **leverage**: Set the fixed leverage you will use at your trading convenience. If you want to create a dynamic leverage position, please change the strategy_file file. You can set this with values from 0 (no position) to any positive number. A high value needs to be evaluated as per the leverage limits IB sets for each forex asset.
