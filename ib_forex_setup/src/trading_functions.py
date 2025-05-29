@@ -1,4 +1,5 @@
 # Import the necessary libraries
+import ast
 import pytz
 import numpy as np
 import pandas as pd
@@ -8,7 +9,33 @@ from lightgbm import LGBMClassifier
 from shaphypetune import BoostBoruta
 
 def dropLabels(events,minPct=.05):
+    """
+    Removes under-represented classes from the target variable to address class imbalance.
+
+    Iteratively drops the least frequent class in the 'y' column until:
+    1. All remaining classes meet the minimum percentage threshold (minPct), OR
+    2. Only two classes remain
+
+    Args:
+        events (pd.DataFrame): Input dataframe containing the 'y' target column
+        minPct (float, optional): Minimum acceptable percentage for any class (0.05 = 5%)
+
+    Returns:
+        pd.DataFrame: Filtered dataframe with balanced classes in 'y' column
+
+    Notes:
+        - Operates on a copy of the input dataframe to avoid modifying original data
+        - Preserves row indices after filtering
+        - Particularly useful for ML models sensitive to class imbalance
+        - Final classes will always have ≥ minPct representation or be reduced to 2 classes
+
+    Example:
+        If 'y' has classes distributed as [70%, 25%, 5%] with minPct=0.05:
+        - First iteration: drops 5% class
+        - Result: [73.7%, 26.3%] distribution
+    """
     ''' Function to drop the lowest-percentage prediction feature class'''
+
     # apply weights, drop labels with insufficient examples
     while True:
         # Count the total number of observations per each prediction feature class
@@ -20,7 +47,27 @@ def dropLabels(events,minPct=.05):
     return events
 
 def get_mid_series(dfraw):
-    ''' Function to get the midpoint series'''
+    """
+    Calculates mid-prices from bid/ask OHLC data for forex trading applications.
+
+    Args:
+        dfraw (pd.DataFrame): Raw dataframe containing bid/ask columns:
+            - Format: bid_close, ask_close, bid_high, ask_high, etc.
+
+    Returns:
+        pd.DataFrame: Processed dataframe with:
+            - Midpoint OHLC: (bid_price + ask_price)/2 for Close/High/Low/Open
+            - Sorted chronological index
+            - NaN-free values
+
+    Notes:
+        - Handles missing values via forward-filling before calculation
+        - Ensures temporal order with ascending index sort
+        - Removes residual NaN values post-calculation
+        - Maintains original datetime index alignment
+        - Designed for tick/quote data common in forex markets
+    """
+
     # Copy the dataframe 
     dfraw = dfraw.copy(deep=True)
     # Set the OHLC names list
@@ -40,7 +87,31 @@ def get_mid_series(dfraw):
     return df
 
 def resample_df(dfraw,frequency,start='00h00min'):
-    ''' Function to resample the data'''
+    """
+    Resamples OHLC data to specified frequency while preserving price extremes and their timestamps.
+
+    Args:
+        dfraw (pd.DataFrame): Raw OHLC data with datetime index
+        frequency (str): Resampling frequency (e.g., '15min', '4h')
+        start (str): Anchor time for first bar ('HHhMMmin' format)
+
+    Returns:
+        pd.DataFrame: Resampled bars with:
+            - OHLC prices (first Open, last Close, max High, min Low)
+            - Timestamps of price extremes (High_time, Low_time)
+            - high_first flag (True if High occurred before Low in period)
+            - Forward-projected last bar to avoid look-ahead bias
+
+    Notes:
+        - Aligns first bar to first occurrence of `start` time in data
+        - Maintains temporal sequence with ascending index
+        - Adds metadata for market structure analysis:
+            * High_time/Low_time: Exact timing of price extremes
+            * high_first: Indicates if High preceded Low in period
+        - Handles final incomplete bar by forward projection
+        - Designed for session-based trading strategies
+    """
+
     # Copy the dataframe
     df = dfraw.copy()   
     # Get the start hour
@@ -52,6 +123,7 @@ def resample_df(dfraw,frequency,start='00h00min'):
     origin = df[(df.index.hour==hour) & (df.index.minute==minutes)].index[0]
     # Subset the dataframe from the origin onwards
     df = df[df.index>=origin]
+
     # Create a datetime column based on the index
     df['datetime'] = df.index
     # Create a new dataframe
@@ -88,8 +160,37 @@ def resample_df(dfraw,frequency,start='00h00min'):
     return final_df
 
 def directional_change_events(data, theta=0.004, columns=None):
-    """ Function to create the DC indicators provided by Chen and Tsang (2021) """
+    """
+    Generates Directional Change (DC) indicators as defined by Chen and Tsang (2021).
 
+    Implements event-driven market regime detection using price thresholds to identify:
+    - Peak/trough points
+    - Trend magnitude (TMV)
+    - Trend duration (T)
+    - Time-adjusted returns (R)
+
+    Args:
+        data (pd.DataFrame): OHLC price data with 'Close' column
+        theta (float, optional): Threshold percentage for DC detection (0.004 = 0.4%)
+        columns (list, optional): Subset of columns to return. None returns full dataframe
+
+    Returns:
+        pd.DataFrame: Original dataframe augmented with DC indicators:
+            - Event: -1 (peak), 1 (trough), 0 (no event)
+            - peak_trough_prices: Last detected peak/trough price
+            - count: Bars since last DC event
+            - TMV: Trend Magnitude Value (price change / (theta * previous peak/trough))
+            - T: Time periods between events
+            - R: Log-scaled time-adjusted returns
+
+    Notes:
+        - Initializes with upward trend assumption from first Close price
+        - Events trigger when prices cross theta thresholds from last extremum
+        - Forward-fills non-event periods for continuous regime tracking
+        - Replaces infinite values with NaNs for robustness
+        - Maintains temporal alignment through pandas index
+    """
+    
     # Copy the dataframe
     data = data.copy()
 
@@ -170,7 +271,33 @@ def directional_change_events(data, theta=0.004, columns=None):
         return data[columns]
 
 def library_boruta_shap(X, y, seed, max_iter, date_loc):
-    """ Function to compute the Boruta-Shap algorithm and get the best features"""    
+    """
+    Performs feature selection using Boruta-Shap algorithm with LightGBM integration.
+
+    Args:
+        X (pd.DataFrame): Feature matrix with datetime index
+        y (pd.Series): Target variable series
+        seed (int): Random seed for reproducibility
+        max_iter (int): Maximum Boruta iterations for feature confirmation
+        date_loc (datetime): Split point for train/validation sets
+
+    Returns:
+        list: Selected feature names passing Boruta-Shap criteria. Returns all features if:
+            - No features selected
+            - Algorithm fails (handles exceptions)
+
+    Notes:
+        - Uses LightGBM classifier with fixed hyperparameter grid:
+            * learning_rate: [0.2, 0.1]
+            * num_leaves: [25]
+            * max_depth: [12]
+        - Implements BoostBoruta wrapper for SHAP-based feature importance
+        - Validation set uses post-date_loc data for early stopping
+        - Fallback mechanism returns original features on error
+        - Parallel processing enabled (n_jobs=-2)
+        - Early stopping after 6 non-improving Boruta rounds
+    """
+
     X_train, X_test = X.loc[:date_loc,:], X.loc[date_loc:,:]
     y_train, y_test = y.loc[:date_loc, 'y'].values.reshape(-1,), y.loc[date_loc:, 'y'].values.reshape(-1,)
     
@@ -201,6 +328,25 @@ def library_boruta_shap(X, y, seed, max_iter, date_loc):
         return best_features
 
 def create_Xy(indf, feature_cols, y_target_col): 
+    """
+    Splits a dataframe into feature matrix (X) and target variable (y) for machine learning.
+
+    Args:
+        indf (pd.DataFrame): Source dataframe containing both features and target
+        feature_cols (list): Column names to use as input features
+        y_target_col (str): Column name containing target variable to predict
+
+    Returns:
+        tuple: Contains two elements:
+            - X (pd.DataFrame): Feature matrix with selected columns
+            - y (pd.DataFrame): Target variable as single-column dataframe
+
+    Notes:
+        - Maintains index alignment between X and y
+        - Converts y to DataFrame for sklearn compatibility
+        - Does not validate column existence - ensure columns exist in indf
+        - Preserves original dataframe ordering
+    """
     """ Function to create the input and prediction features dataframes """
     # Create the input features and prediction features dataframes
     X, y = indf[feature_cols], indf[y_target_col].to_frame()
@@ -219,7 +365,38 @@ def roll_zscore(x, window):
     return z
 
 def rolling_zscore_function(data, scalable_features, window):
+    """
+    Applies rolling z-score normalization to specified features while preserving non-scalable columns.
+
+    Processes input features by:
+    1. Calculating rolling z-scores over a defined window period
+    2. Handling infinite/nan values from initial window calculations
+    3. Maintaining original feature values when insufficient historical data exists
+    4. Merging scaled features with non-scaled columns
+
+    Args:
+        data (pd.DataFrame): Input dataframe containing features to scale
+        scalable_features (list): Column names to apply rolling z-score normalization
+        window (int): Lookback window for z-score calculation (μ and σ)
+
+    Returns:
+        tuple: Contains two elements:
+            - pd.DataFrame: Processed dataframe with scaled/non-scaled features
+            - list: Names of successfully scaled features
+
+    Notes:
+        - Features with >window NaN values after scaling retain original values
+        - Infinite values are converted to NaN before processing
+        - Final output drops all rows with NaN values
+        - Preserves non-scalable features from original data
+        - Requires `roll_zscore` utility function (assumes standard implementation)
+
+    Example:
+        scaled_df, scaled_cols = rolling_zscore_function(df, ['volatility', 'volume'], 30)
+        # Result will have z-scores for features with sufficient history, original values otherwise
+    """
     """ Function to create the rolling zscore versions of the feature inputs """
+
     # Create a scaled X dataframe based on the data index
     X_scaled_final = pd.DataFrame(index=data.index)
     # Create the scaled X data 
@@ -252,7 +429,31 @@ def rolling_zscore_function(data, scalable_features, window):
     return X_scaled_final, scaled_features
 
 def train_test_split(X, y, split, purged_window_size, embargo_period):
-    """ Function to split the data into train and test data """
+    """
+    Splits time-series data into training/test sets with purging and embargo periods to prevent look-ahead bias.
+
+    Args:
+        X (pd.DataFrame): Feature matrix
+        y (pd.Series/pd.DataFrame): Target variable
+        split (int): Number of observations for test set (last `split` records)
+        purged_window_size (int): Number of initial training observations to exclude (prevows model contamination)
+        embargo_period (int): Number of final training observations to exclude (post-split buffer)
+
+    Returns:
+        tuple: Contains four elements:
+            - X_train: Purged/embargoed training features
+            - X_test: Test features (last `split` obs)
+            - y_train: Purged/embargoed training targets
+            - y_test: Test targets
+
+    Notes:
+        - Maintains temporal order - test set always uses most recent data
+        - Preserves pandas index alignment
+        - Purge window removes early potentially unreliable data
+        - Embargo creates buffer between train/test to avoid leakage
+        - Designed for financial time series where sequence matters
+    """
+
     # If the split variable is an integer
     if isinstance(split, int):
         # Get the train data
@@ -355,9 +556,13 @@ def get_end_hours(timezone, london_start_hour, local_restart_hour):
     trader_datetime_negative_sign_bool = trader_datetime_timestamp.startswith("-")
     # Set the trader's timezone difference sign number
     trader_datetime_sign = -1 if trader_datetime_negative_sign_bool else +1
-    # Get the number of minutes of the difference between both datetimes
-    minutes = int(str(abs(trader_datetime.replace(tzinfo=None) - eastern.replace(tzinfo=None)))[2:4])
-    
+    try:
+        # Get the number of minutes of the difference between both datetimes
+        minutes = int(str(abs(trader_datetime.replace(tzinfo=None) - eastern.replace(tzinfo=None)))[2:4])
+    except:
+        # Get the number of minutes of the difference between both datetimes
+        minutes = int(str(abs(trader_datetime.replace(tzinfo=None) - eastern.replace(tzinfo=None)))[3:5])
+
     # If the trader's timezone sign is different from Eastern's
     if trader_datetime_sign != eastern_sign:
         # Set the restart hour
@@ -390,7 +595,24 @@ def get_end_hours(timezone, london_start_hour, local_restart_hour):
     return restart_hour, restart_minute, day_end_hour, day_end_minute, trading_start_hour
         
 def get_data_frequency_values(data_frequency):
-    """ Function to get the data frequency number and string """
+    """
+    Parses frequency specification string into numerical and categorical components.
+
+    Args:
+        data_frequency (str): Frequency string in 'Xmin' or 'Yh' format
+            Examples: '15min', '4h'
+
+    Returns:
+        tuple: Contains two elements:
+            - frequency_number (int): Numerical value of frequency
+            - frequency_string (str): Unit identifier ('min' or 'h')
+
+    Notes:
+        - Designed to support minute/hour frequencies only
+        - Input format must contain either 'min' or 'h' substring
+        - Used internally for period/day calculations in `get_periods_per_day`
+        - Does not validate input format - assumes proper construction
+    """
     
     # If the data frequency is in minutes
     if 'min' in data_frequency:
@@ -405,10 +627,24 @@ def get_data_frequency_values(data_frequency):
         # Set the frequency string
         frequency_string = data_frequency[data_frequency.find("h"):]
         
-    return frequency_number, frequency_string
+    return frequency_number, frequency_string 
 
 def get_periods_per_day(data_frequency):
-    """ Function to get the number of periods per day as per the data frequency """
+    """
+    Calculates the number of data periods per trading day based on the specified frequency.
+
+    Args:
+        data_frequency (str): Frequency specification (e.g., '15min', '1h') 
+
+    Returns:
+        int: Number of periods in a 24-hour trading day
+
+    Notes:
+        - Requires `get_data_frequency_values` helper to parse frequency components
+        - Supports minute ('min') and hour ('h') frequencies only
+        - Assumes 24-hour trading calendar (no market closure periods)
+        - Example: '15min' → 96 periods/day, '4h' → 6 periods/day
+    """
     
     # Get the data frequency number and string
     frequency_number, frequency_string = get_data_frequency_values(data_frequency)
@@ -648,7 +884,7 @@ def get_todays_periods(now_, data_frequency, previous_day_start_datetime):
 
     return periods
 
-def get_the_closest_periods(now_, data_frequency, trading_day_end_datetime, previous_day_start_datetime, day_start_datetime, market_close_time):
+def get_the_closest_periods_old(now_, data_frequency, trading_day_end_datetime, previous_day_start_datetime, day_start_datetime, market_close_time):
     """ Function to get the closest trading periods to now """
     
     # Get the periods' list
@@ -698,6 +934,63 @@ def get_the_closest_periods(now_, data_frequency, trading_day_end_datetime, prev
     
     return previous_period, current_period, next_period
 
+def get_the_closest_periods(now_, data_frequency, trading_day_end_datetime, previous_day_start_datetime, day_start_datetime, market_close_time):
+    """ Function to get the closest trading periods to now """
+    
+    # Get the periods' list
+    periods = get_todays_periods(now_, data_frequency, previous_day_start_datetime)
+    
+    # If now is sooner than the trading day-end datetime
+    if now_ < trading_day_end_datetime:
+        # If the last periods' list datetime is sooner than the trading day-end datetime
+        if periods[-1] <= trading_day_end_datetime:
+            # The next period is the last datetime in the periods' list
+            next_period = periods[-1]
+        # If the last periods' list datetime is later than the trading day-end datetime
+        else:
+            # The next period is the trading_day_end_datetime
+            next_period = trading_day_end_datetime
+         
+        # Set the previous and current period
+        previous_period, current_period = periods[-3], periods[-2]
+        
+    # If now is sooner than the trading day start datetime
+    elif now_ < day_start_datetime:
+        # # If the last periods' list datetime is sooner than the trading day-end datetime
+        # if periods[-1] <= day_start_datetime:
+        #     # The next period is the last datetime in the periods' list
+        #     next_period = periods[-1]
+        # # If the last periods' list datetime is later than the trading day-end datetime
+        # else:
+        #     # The next period is the trading_day_end_datetime
+        #     next_period = day_start_datetime
+         
+        # # Set the previous and current period
+        # previous_period, current_period = periods[-3], periods[-2]
+        
+        if periods[-2] == trading_day_end_datetime:
+            previous_period, current_period, next_period = periods[-3], trading_day_end_datetime, day_start_datetime
+        else:
+            previous_period, current_period, next_period = periods[-2], trading_day_end_datetime, day_start_datetime
+        
+    # If now is sooner than the market close datetime
+    elif now_ < market_close_time:
+        # If the last periods' list datetime is sooner than the market close datetime
+        if periods[-1] <= market_close_time:
+            # The next period is the last datetime in the periods' list
+            next_period = periods[-1]
+        # If the last periods' list datetime is later than the market close datetime
+        else:
+            # The next period is the market close datetime
+            next_period = market_close_time
+            
+        # Set the previous and current period
+        previous_period, current_period = periods[-3], trading_day_end_datetime
+    
+    return previous_period, current_period, next_period
+
+
+
 def allsaturdays(date0):
     """ Function to get all the Saturday dates from 2005 to date0 """
     # Create d to be looped
@@ -722,3 +1015,62 @@ def saturdays_list(date0):
     # Convert the Saturdays datetimes to datetime type
     saturdays = [date0.strftime("%Y%m%d-%H:%M:%S") for date0 in saturdays]
     return saturdays
+
+def extract_variables(source_file):
+    """
+    Extracts variables and their values from a Python script and saves them
+    to another Python script.
+    """
+    try:
+        with open(source_file, "r") as f:
+            source_code = f.read()
+
+        tree = ast.parse(source_code)
+        variables = {}
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        variable_name = target.id
+                        try:
+                            variable_value = ast.literal_eval(node.value)
+                            variables[variable_name] = variable_value
+                        except (ValueError, SyntaxError):
+                            # Handle cases where the value is not a literal
+                            print(f"Warning: Could not extract literal value for {variable_name}")
+
+    except FileNotFoundError:
+        print(f"Error: Source file '{source_file}' not found.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        
+    return variables
+
+def get_return_variable_names(filename, function_name):
+    """
+    Extracts return variable names from a function in a file.
+    Args:
+        filename (str): Path to the Python file (e.g., "strategy.py").
+        function_name (str): Name of the function (e.g., "sum1").
+    Returns:
+        List of variable names (strings) or empty list if not found.
+    """
+    with open(filename, "r") as file:
+        source_code = file.read()
+    
+    tree = ast.parse(source_code)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == function_name:
+            # Find the return statement in the function body
+            for body_node in node.body:
+                if isinstance(body_node, ast.Return):
+                    return_value = body_node.value
+                    # Extract variable names from return statement
+                    if isinstance(return_value, ast.Tuple):
+                        return [n.id for n in return_value.elts if isinstance(n, ast.Name)]
+                    elif isinstance(return_value, ast.Name):
+                        return [return_value.id]
+                    else:
+                        return []  # Complex expression (not variables)
+    return []
