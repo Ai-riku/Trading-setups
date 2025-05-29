@@ -1,15 +1,19 @@
 # Import the necessary libraries
 import os
 import time
+import pickle
+import inspect
 import logging
+import numpy as np
 import datetime as dt
 from threading import Thread
-import create_database as cd
+from ib_forex_setup import create_database as cd
 import strategy as stra
-import trading_functions as tf
-import setup_functions as sf
-import setup_for_download_data as sdd
-from setup import trading_app
+from ib_forex_setup import trading_functions as tf
+from ib_forex_setup import setup_functions as sf
+from ib_forex_setup import setup_for_download_data as sdd
+from ib_forex_setup.setup import trading_app
+import pandas as pd
 
 now_ = dt.datetime.now()
 
@@ -45,9 +49,9 @@ logging.basicConfig(filename=f'data/log/log_file_{now_.year}_{month}_{day}_{hour
                     format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
 # Function to run the app each period
-def run_app(host, port, account, client_id, timezone, now_, account_currency, symbol, leverage, risk_management_target, stop_loss_multiplier, take_profit_multiplier, 
-            historical_data_address, base_df_address, data_frequency, purged_window_size, embargo_period, 
-            trading_day_end_datetime, day_end_datetime, previous_day_start_datetime, day_start_datetime, market_open_time, market_close_time, train_span, test_span, max_window):
+def run_app(host, port, account, client_id, timezone, now_, account_currency, symbol,  
+            historical_data_address, base_df_address, data_frequency, 
+            trading_day_end_datetime, day_end_datetime, previous_day_start_datetime, day_start_datetime, market_open_time, market_close_time, train_span, test_span, trail):
     
     print('='*100)
     print('='*100)
@@ -64,9 +68,9 @@ def run_app(host, port, account, client_id, timezone, now_, account_currency, sy
     # A while loop to run the app, we will break the loop whenever we finish running the app for the current period
     while True:
         # Create an object of the app class
-        app = trading_app(logging, account, account_currency, symbol, timezone, data_frequency, historical_data_address, base_df_address, leverage, 
-                          risk_management_target, stop_loss_multiplier, take_profit_multiplier, purged_window_size, embargo_period, market_open_time, market_close_time, 
-                          previous_day_start_datetime, trading_day_end_datetime, day_end_datetime, current_period, previous_period, next_period, train_span, test_span, max_window)
+        app = trading_app(logging, account, account_currency, symbol, timezone, data_frequency, historical_data_address, base_df_address,  
+                          market_open_time, market_close_time, 
+                          previous_day_start_datetime, trading_day_end_datetime, day_end_datetime, current_period, previous_period, next_period, train_span, test_span, trail)
                 
         # Connect the app to the IB server
         print('Connecting the app to the IB server...')
@@ -168,8 +172,8 @@ def run_app(host, port, account, client_id, timezone, now_, account_currency, sy
             break
                 
 # Run the trading all inside a loop for the whole week                        
-def run_trading_setup_loop(host, port, account, client_id, data_frequency, london_start_hour, local_restart_hour, timezone, now_, account_currency, symbol, leverage, risk_management_target, stop_loss_multiplier, take_profit_multiplier, 
-                         historical_data_address, base_df_address, purged_window_size, embargo_period, train_span, test_span, max_window):  
+def run_trading_setup_loop(host, port, account, client_id, data_frequency, london_start_hour, local_restart_hour, timezone, now_, account_currency, symbol, 
+                           historical_data_address, base_df_address, train_span, test_span, trail):  
                   
     print('='*100)
     print('='*100)
@@ -252,8 +256,8 @@ def run_trading_setup_loop(host, port, account, client_id, data_frequency, londo
                     # If now is less than the autorestart datetime
                     if (dt.datetime.now() < auto_restart_datetime_before_end):
                         # Run the app
-                        run_app(host, port, account, client_id, timezone, now_, account_currency, symbol, leverage, risk_management_target, stop_loss_multiplier, take_profit_multiplier, historical_data_address, base_df_address, data_frequency, purged_window_size, embargo_period, 
-                                    trading_day_end_datetime, day_end_datetime, previous_day_start_datetime, day_start_datetime, market_open_time, market_close_time, train_span, test_span, max_window)
+                        run_app(host, port, account, client_id, timezone, now_, account_currency, symbol,  historical_data_address, base_df_address, data_frequency, 
+                                    trading_day_end_datetime, day_end_datetime, previous_day_start_datetime, day_start_datetime, market_open_time, market_close_time, train_span, test_span, trail)
                     # If now is higher than the auto-restart datetime
                     else:
                         # Break the while loop
@@ -267,8 +271,8 @@ def run_trading_setup_loop(host, port, account, client_id, data_frequency, londo
                     # If now is sooner than the day datetime before the day closes
                     if (dt.datetime.now() < day_datetime_before_end):
                         # Run the app
-                        run_app(host, port, account, client_id, timezone, now_, account_currency, symbol, leverage, risk_management_target, stop_loss_multiplier, take_profit_multiplier, historical_data_address, base_df_address, data_frequency, purged_window_size, embargo_period, 
-                                    trading_day_end_datetime, day_end_datetime, previous_day_start_datetime, day_start_datetime, market_open_time, market_close_time, train_span, test_span, max_window)
+                        run_app(host, port, account, client_id, timezone, now_, account_currency, symbol,  historical_data_address, base_df_address, data_frequency, 
+                                    trading_day_end_datetime, day_end_datetime, previous_day_start_datetime, day_start_datetime, market_open_time, market_close_time, train_span, test_span, trail)
                     # If now is later than the day datetime before the day closes
                     else:
                         # Break the while loop
@@ -279,8 +283,8 @@ def run_trading_setup_loop(host, port, account, client_id, data_frequency, londo
                     # If now is later than the day datetime before the day closes and sooner than the trading day end datetime
                     if (dt.datetime.now() >= day_datetime_before_end) and (dt.datetime.now() < trading_day_end_datetime):
                         # Run the app
-                        run_app(host, port, account, client_id, timezone, now_, account_currency, symbol, leverage, risk_management_target, stop_loss_multiplier, take_profit_multiplier, historical_data_address, base_df_address, data_frequency, purged_window_size, embargo_period, 
-                                    trading_day_end_datetime, day_end_datetime, previous_day_start_datetime, day_start_datetime, market_open_time, market_close_time, train_span, test_span, max_window)
+                        run_app(host, port, account, client_id, timezone, now_, account_currency, symbol,  historical_data_address, base_df_address, data_frequency, 
+                                    trading_day_end_datetime, day_end_datetime, previous_day_start_datetime, day_start_datetime, market_open_time, market_close_time, train_span, test_span, trail)
                     # If now is later than the trading day end datetime
                     else:
                         # Break the while loop
@@ -290,8 +294,8 @@ def run_trading_setup_loop(host, port, account, client_id, data_frequency, londo
                     # If now is later than the trading day end datetime and sooner than the day end datetime
                     if (dt.datetime.now() >= trading_day_end_datetime) and (dt.datetime.now() < day_end_datetime):
                         # Run the app
-                        run_app(host, port, account, client_id, timezone, now_, account_currency, symbol, leverage, risk_management_target, stop_loss_multiplier, take_profit_multiplier, historical_data_address, base_df_address, data_frequency, purged_window_size, embargo_period, 
-                                    trading_day_end_datetime, day_end_datetime, previous_day_start_datetime, day_start_datetime, market_open_time, market_close_time, train_span, test_span, max_window)
+                        run_app(host, port, account, client_id, timezone, now_, account_currency, symbol,  historical_data_address, base_df_address, data_frequency, 
+                                    trading_day_end_datetime, day_end_datetime, previous_day_start_datetime, day_start_datetime, market_open_time, market_close_time, train_span, test_span, trail)
                     # If now is later than the day-end datetime
                     else:
                         # Break the while loop
@@ -309,8 +313,8 @@ def run_trading_setup_loop(host, port, account, client_id, data_frequency, londo
                 # If now is sooner than the day datetime before the day closes
                 if (dt.datetime.now() <= day_datetime_before_end):
                     # Run the app
-                    run_app(host, port, account, client_id, timezone, now_, account_currency, symbol, leverage, risk_management_target, stop_loss_multiplier, take_profit_multiplier, historical_data_address, base_df_address, data_frequency, purged_window_size, embargo_period, 
-                            trading_day_end_datetime, day_end_datetime, previous_day_start_datetime, day_start_datetime, market_open_time, market_close_time, train_span, test_span, max_window)
+                    run_app(host, port, account, client_id, timezone, now_, account_currency, symbol,  historical_data_address, base_df_address, data_frequency, 
+                            trading_day_end_datetime, day_end_datetime, previous_day_start_datetime, day_start_datetime, market_open_time, market_close_time, train_span, test_span, trail)
                 # If now is later than the day datetime before the day closes
                 else:
                     # Break the while loop
@@ -320,8 +324,8 @@ def run_trading_setup_loop(host, port, account, client_id, data_frequency, londo
                 # If now is later than the day datetime before the day closes and sooner than the trading day end datetime
                 if (dt.datetime.now() >= day_datetime_before_end) and (dt.datetime.now() < trading_day_end_datetime): 
                     # Run the app
-                    run_app(host, port, account, client_id, timezone, now_, account_currency, symbol, leverage, risk_management_target, stop_loss_multiplier, take_profit_multiplier, historical_data_address, base_df_address, data_frequency, purged_window_size, embargo_period, 
-                            trading_day_end_datetime, day_end_datetime, previous_day_start_datetime, day_start_datetime, market_open_time, market_close_time, train_span, test_span, max_window)
+                    run_app(host, port, account, client_id, timezone, now_, account_currency, symbol,  historical_data_address, base_df_address, data_frequency, 
+                            trading_day_end_datetime, day_end_datetime, previous_day_start_datetime, day_start_datetime, market_open_time, market_close_time, train_span, test_span, trail)
                 # If now is later than the trading day end datetime
                 else:
                     # Break the while loop
@@ -331,32 +335,44 @@ def run_trading_setup_loop(host, port, account, client_id, data_frequency, londo
                 # If now is later than the trading day end datetime and sooner than the day end datetime
                 if (dt.datetime.now() >= trading_day_end_datetime) and (dt.datetime.now() < day_end_datetime):
                     # Run the app
-                    run_app(host, port, account, client_id, timezone, now_, account_currency, symbol, leverage, risk_management_target, stop_loss_multiplier, take_profit_multiplier, historical_data_address, base_df_address, data_frequency, purged_window_size, embargo_period, 
-                            trading_day_end_datetime, day_end_datetime, previous_day_start_datetime, day_start_datetime, market_open_time, market_close_time, train_span, test_span, max_window)
+                    run_app(host, port, account, client_id, timezone, now_, account_currency, symbol,  historical_data_address, base_df_address, data_frequency, 
+                            trading_day_end_datetime, day_end_datetime, previous_day_start_datetime, day_start_datetime, market_open_time, market_close_time, train_span, test_span, trail)
+                    
                 # If now is later than the day-end datetime
                 else:
                     # Break the while loop
                     break
-                                        
+                            
             print("Let's wait until the trading week close datetime arrives")
             logging.info("Let's wait until the trading week close datetime arrives")
             while (dt.datetime.now() >= day_end_datetime) and (dt.datetime.now() < day_start_datetime): continue
-    
-# A main function to run everything
-def main(account, timezone, port, account_currency, symbol, data_frequency, local_restart_hour, historical_data_address, base_df_address, train_span, test_span_days, 
-         max_window, host, client_id, purged_window_size, embargo_period, seed, random_seeds, leverage, risk_management_target, stop_loss_multiplier, take_profit_multiplier, smtp_username, to_email, password):   
+
+def main():   
      
+    # Get the variables set in the main file
+    variables = tf.extract_variables('main.py')
+    
+    host = variables['host']
+    account = variables['account']
+    timezone = variables['timezone']
+    port = variables['port']
+    account_currency = variables['account_currency']
+    symbol = variables['symbol']
+    data_frequency = variables['data_frequency']
+    local_restart_hour = variables['local_restart_hour']
+    historical_data_address = variables['historical_data_address']
+    base_df_address = variables['base_df_address']
+    train_span = variables['train_span']
+    test_span_days = variables['test_span_days']
+    client_id = variables['client_id']
+    smtp_username = variables['smtp_username']
+    to_email = variables['to_email']
+    password = variables['password']
+    trail = variables['trail']
+    seed = variables['seed']
+    
     # Set the London-timezone hour as the trading start hour
     london_start_hour = 23
-    
-    # The historical minute-frequency data address
-    historical_minute_data_address = f'data/app_{symbol}_df.csv'
-        
-    # Set the test span
-    test_span = test_span_days*tf.get_periods_per_day(data_frequency)
-    
-    # Add the test span value to the train span
-    train_span += test_span
     
     # Get the local timezone hours that match the Easter timezone hours
     restart_hour, restart_minute, day_end_hour, day_end_minute, trading_start_hour = tf.get_end_hours(timezone, london_start_hour, local_restart_hour)
@@ -366,6 +382,27 @@ def main(account, timezone, port, account_currency, symbol, data_frequency, loca
     
     month_string = str(market_open_time.month) if market_open_time.month>=10 else '0'+str(market_open_time.month)
     day_string = str(market_open_time.day-1) if (market_open_time.day-1)>=10 else '0'+str(market_open_time.day-1)
+
+    # The historical minute-frequency data address
+    historical_minute_data_address = f'data/app_{symbol}_df.csv'
+        
+    # Set the test span
+    test_span = test_span_days*tf.get_periods_per_day(data_frequency)
+    
+    # Add the test span value to the train span
+    train_span += test_span
+    
+    variables['market_open_time'] = market_open_time
+    variables['historical_minute_data_address'] = historical_minute_data_address
+    variables['test_span'] = test_span
+    variables['train_span'] = train_span
+    
+    signature = inspect.signature(stra.strategy_parameter_optimization)
+    
+    stra_func_params = [variables[name] for name, param in signature.parameters.items()]
+    
+    # Create 10 uniformly-distributed random numbers
+    np.random.seed(seed)
 
     # If you don't have historical minute-frequency data
     if os.path.exists(historical_minute_data_address)==False:
@@ -379,21 +416,51 @@ def main(account, timezone, port, account_currency, symbol, data_frequency, loca
         print('='*100)
         print('Optimizating the strategy parameters...')
         # Optimize the strategy parameters
-        stra.strategy_parameter_optimization(market_open_time, seed, random_seeds, data_frequency, max_window, historical_minute_data_address, train_span, test_span)
+        stra.strategy_parameter_optimization(*stra_func_params)    
+        
+        dict1 = {'stra_opt':1}
+            
+        with open(f'data/models/stra_opt_{market_open_time.year}_{month_string}_{day_string}.pickle', 'wb') as handle:
+            pickle.dump(dict1, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
     # If you do have a historical minute-frequency data
     else:
-        # Update the historical minute-frequency and the resampled data
-        sdd.run_hist_data_download_app(historical_minute_data_address, historical_data_address, symbol, timezone, data_frequency, 'true', '10 D', train_span, market_open_time)
+        # Set the now datetime with the 23:59:00 time
+        now = dt.datetime.now()
+        # Get the Saturdays list
+        saturdays = tf.saturdays_list(now.date())
+        # Import the historical data
+        end_df = pd.read_csv(historical_minute_data_address, index_col=0)
+        # Set the now datetime to the first index value of the dataframe
+        now = end_df.index[0]
+        if dt.datetime.strptime(now,'%Y-%m-%d %H:%M:%S').year>2005:
+            # Set the index to datetime type
+            end_df.index = pd.to_datetime(end_df.index)
+            # Get the Saturdays list from January 2005 to the now datetime
+            saturdays = [date0 for date0 in saturdays if date0<=now]         
+            
+            # Update the historical minute-frequency and the resampled data to get data from 2005 onwards
+            sdd.run_hist_data_download_app(historical_minute_data_address, historical_data_address, symbol, timezone, data_frequency, 'false', '10 D', train_span, market_open_time)
+            # Update the historical minute-frequency and the resampled data
+            sdd.run_hist_data_download_app(historical_minute_data_address, historical_data_address, symbol, timezone, data_frequency, 'true', '10 D', train_span, market_open_time)
+        else:
+            # Update the historical minute-frequency and the resampled data
+            sdd.run_hist_data_download_app(historical_minute_data_address, historical_data_address, symbol, timezone, data_frequency, 'true', '10 D', train_span, market_open_time)
 
         # If it's the first time you begin to go live trading
-        if (os.path.exists(f'data/models/model_object_{market_open_time.year}_{month_string}_{day_string}.pickle')==False):
+        if (os.path.exists(f'data/models/stra_opt_{market_open_time.year}_{month_string}_{day_string}.pickle')==False):
             print('='*100)
             print('='*100)
             print('='*100)
             print('Optimizating the strategy parameters...')
             # Optimize the strategy parameters
-            stra.strategy_parameter_optimization(market_open_time, seed, random_seeds, data_frequency, max_window, historical_minute_data_address, base_df_address, purged_window_size, embargo_period, train_span, test_span)
+            stra.strategy_parameter_optimization(*stra_func_params)
         
+            dict1 = {'stra_opt':1}
+                
+            with open(f'data/models/stra_opt_{market_open_time.year}_{month_string}_{day_string}.pickle', 'wb') as handle:
+                pickle.dump(dict1, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
     if os.path.exists("data/database.xlsx")==False:
         print('='*100)
         print('='*100)
@@ -407,9 +474,8 @@ def main(account, timezone, port, account_currency, symbol, data_frequency, loca
     print('='*100)
     print('Running the trading app for the week...')
     # Run the app loop
-    run_trading_setup_loop(host, port, account, client_id, data_frequency, london_start_hour, local_restart_hour, timezone, dt.datetime.now(), account_currency, symbol, leverage, risk_management_target, stop_loss_multiplier, take_profit_multiplier, 
-                         historical_data_address, base_df_address, purged_window_size, embargo_period, train_span, 1, max_window)
-        
+    run_trading_setup_loop(host, port, account, client_id, data_frequency, london_start_hour, local_restart_hour, timezone, dt.datetime.now(), account_currency, symbol, 
+                           historical_data_address, base_df_address, train_span, 1, trail)     
     print('='*100)
     print('='*100)
     print('='*100)
@@ -423,11 +489,19 @@ def main(account, timezone, port, account_currency, symbol, data_frequency, loca
     # Get the market open and close datetimes of the current week
     market_open_time, market_close_time = tf.define_trading_week(timezone, trading_start_hour, day_end_minute)
 
-    if (os.path.exists(f'data/model_object_{market_open_time.year}_{month_string}_{day_string}.pickle')==False):
+    if (os.path.exists(f'data/models/stra_opt_{market_open_time.year}_{month_string}_{day_string}.pickle')==False):
         print('='*100)
         print('='*100)
         print('='*100)
         print('Optimizating the strategy parameters...')
 
         # Optimize the strategy parameters once the market closes
-        stra.strategy_parameter_optimization(market_open_time, seed, random_seeds, data_frequency, max_window, historical_minute_data_address, base_df_address, purged_window_size, embargo_period, train_span, test_span)
+        stra.strategy_parameter_optimization(*stra_func_params)
+  
+        dict1 = {'stra_opt':1}
+            
+        with open(f'data/models/stra_opt_{market_open_time.year}_{month_string}_{day_string}.pickle', 'wb') as handle:
+            pickle.dump(dict1, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+main()
