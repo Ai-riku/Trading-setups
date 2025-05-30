@@ -166,5 +166,3 @@ This document outlines the relevant modifications made between version 1.0.0 and
 7.  **Strategy File Interface (`user_config/strategy.py` in 1.0.1 vs. `samples/strategy.py` in 1.0.0)**:
     * Functions like `set_stop_loss_price`, `set_take_profit_price`, and `get_signal` in 1.0.1s strategy template now primarily expect an `app` object as input, from which they derive necessary context (e.g., `app.signal`, `app.last_value`, `app.base_df`). This is a shift from 1.0.0 where these functions took more individual parameters.
     * `prepare_base_df` and `strategy_parameter_optimization` in 1.0.1 have revised signatures reflecting the new way parameters are sourced (often from `user_config/main.py` via the `engine` or directly within the strategy).
-
-```
