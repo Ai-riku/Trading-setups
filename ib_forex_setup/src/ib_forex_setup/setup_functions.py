@@ -4,8 +4,6 @@
 - You may not use this file except in compliance with the License. 
 - You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 
 - Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# Import the engine file
-from ib_forex_setup import engine
 """
 
 # Import the necessary libraries
@@ -202,12 +200,9 @@ def update_hist_data(app):
     # If the app is connected
     if app.isConnected():
         # Download the historical BID and ASK data
-        # with ThreadPoolExecutor(2) as executor:
-        #     list(executor.map(download_hist_data, [app]*len(params_list), params_list)) 
+        with ThreadPoolExecutor(2) as executor:
+            list(executor.map(download_hist_data, [app]*len(params_list), params_list)) 
         
-        # alpha from the above
-        download_hist_data(app, params_list[0]) 
-        download_hist_data(app, params_list[1]) 
     else:
         return
 
@@ -278,53 +273,103 @@ def update_asset_last_value(app):
         app.last_value_count += 1
 
 def get_capital_as_per_forex_base_currency(app, capital_datetime):
-    
-    # Set the yfinance data 
+
+    # Set the yfinance data
     usd_symbol_forex = np.nan
     usd_acc_symbol_forex = np.nan
+    capital = np.nan # Initialize capital
 
     # If the contract symbol is the same as the account base currency
     if app.contract.symbol==app.account_currency:
         # Get the account capital value
-        app.capital = app.cash_balance.loc[capital_datetime, 'value']
-    else:            
-        # The exchange rate where the divisor is the account base currency and the dividend is the forex pair base currency            
-        exchange_rate = app.acc_update[(app.acc_update['key']=='ExchangeRate') & \
+        capital = app.cash_balance.loc[capital_datetime, 'value']
+    else:
+        # The exchange rate where the divisor is the account base currency and the dividend is the forex pair base currency
+        exchange_rate_list = app.acc_update[(app.acc_update['key']=='ExchangeRate') & \
                                         (app.acc_update['Currency'] == app.contract.symbol)]['Value'].values.tolist()
-            
-        # If there is a exchange rate
-        if len(exchange_rate)!=0:
-            # Get the account capital value
-            capital = app.cash_balance.loc[capital_datetime, 'value'] / float(exchange_rate[0])
-        else:
+
+        # If there is an exchange rate from IB
+        if len(exchange_rate_list)!=0:
+            try:
+                exchange_rate_val = float(exchange_rate_list[0])
+                if exchange_rate_val == 0: # Avoid division by zero
+                     app.logging.warning("Exchange rate from IB is zero. Falling back to Yahoo Finance.")
+                     exchange_rate_list = [] # Force fallback to trigger Yahoo Finance part
+                else:
+                    capital = app.cash_balance.loc[capital_datetime, 'value'] / exchange_rate_val
+            except ValueError:
+                app.logging.error(f"Could not convert exchange rate '{exchange_rate_list[0]}' to float. Falling back to Yahoo Finance.")
+                exchange_rate_list = [] # Force fallback
+            except ZeroDivisionError: # Should be caught by the if exchange_rate_val == 0, but as a safeguard
+                app.logging.error("Division by zero error with IB exchange rate. Falling back to Yahoo Finance.")
+                exchange_rate_list = [] # Force fallback
+
+
+        # If no valid exchange rate from IB, or capital calculation failed, try Yahoo Finance
+        if len(exchange_rate_list)==0 or pd.isna(capital):
+            app.logging.info("Attempting to fetch exchange rates from Yahoo Finance.")
             # Set the end date to download forex data from yahoo finance
             end = app.current_period + dt.timedelta(days=1)
             # Set the start date to download forex data from yahoo finance
             start = end - dt.timedelta(days=2)
 
-            # Get the USD/contract_symbol exchange rate data
-            usd_symbol_data = yf.download(f'USD{app.contract.symbol}=X', start=start, end=end, interval='1m', group_by='ticker')['EURUSD=X']
-            # Set the index as datetime and convert it to the app timezone
-            usd_symbol_data.index = pd.to_datetime(usd_symbol_data.index).tz_convert(app.zone)
-            # Get the USD/contract_symbol exchange rate most-recent value
-            usd_symbol_forex = usd_symbol_data['Close'].iloc[-1]
-            # Get the datetime of the most-recent exchange rate
-            index = usd_symbol_data.index[-1]
-        
-            # Get the USD/account_currency exchange rate data
-            usd_acc_symbol_data = yf.download(f'USD{app.account_currency}=X', start=start, end=end, interval='1m', group_by='ticker')['EURUSD=X']
-            # Set the index as datetime and convert it to the app timezone
-            usd_acc_symbol_data.index = pd.to_datetime(usd_acc_symbol_data.index).tz_convert(app.zone)
-            # Get the USD/account_currency exchange rate most-recent value
-            usd_acc_symbol_forex = usd_acc_symbol_data.loc[index,'Close']
-            
-            # Get the contract_symbol / account_currency exchange rate data                
-            exchange_rate = usd_symbol_forex / usd_acc_symbol_forex
-                                
-            # Use the 90% of the portfolio value just in case the forex pair has changed dramatically (Yahoo Finance data is not up to date)
-            capital = app.cash_balance.loc[capital_datetime, 'value'] * exchange_rate*0.9
-            
-    return capital      
+            usd_symbol_ticker = f'USD{app.contract.symbol}=X'
+            usd_acc_symbol_ticker = f'USD{app.account_currency}=X'
+            calculated_exchange_rate_yf = np.nan # Renamed to avoid conflict
+
+            try:
+                usd_symbol_data_full = yf.download(usd_symbol_ticker, start=start, end=end, interval='1m', group_by='ticker', progress=False, show_errors=False)
+                if not usd_symbol_data_full.empty and usd_symbol_ticker in usd_symbol_data_full.columns.levels[0]:
+                    usd_symbol_data = usd_symbol_data_full[usd_symbol_ticker]
+                    usd_symbol_data.index = pd.to_datetime(usd_symbol_data.index).tz_convert(app.zone)
+                    if not usd_symbol_data.empty and not usd_symbol_data['Close'].isnull().all():
+                        usd_symbol_forex = usd_symbol_data['Close'].ffill().bfill().iloc[-1] # ffill and bfill for robustness
+                        index_for_acc_data = usd_symbol_data.index[-1]
+
+                        usd_acc_symbol_data_full = yf.download(usd_acc_symbol_ticker, start=start, end=end, interval='1m', group_by='ticker', progress=False, show_errors=False)
+                        if not usd_acc_symbol_data_full.empty and usd_acc_symbol_ticker in usd_acc_symbol_data_full.columns.levels[0]:
+                            usd_acc_symbol_data = usd_acc_symbol_data_full[usd_acc_symbol_ticker]
+                            usd_acc_symbol_data.index = pd.to_datetime(usd_acc_symbol_data.index).tz_convert(app.zone)
+
+                            if not usd_acc_symbol_data.empty and not usd_acc_symbol_data['Close'].isnull().all():
+                                # Try to get value at the same index, otherwise fallback to last
+                                if index_for_acc_data in usd_acc_symbol_data.index:
+                                    usd_acc_symbol_forex = usd_acc_symbol_data.loc[index_for_acc_data,'Close']
+                                else: # Fallback to last known if exact timestamp match fails
+                                    usd_acc_symbol_forex = usd_acc_symbol_data['Close'].ffill().bfill().iloc[-1]
+
+                                if not (pd.isna(usd_symbol_forex) or pd.isna(usd_acc_symbol_forex) or usd_acc_symbol_forex == 0):
+                                    calculated_exchange_rate_yf = usd_symbol_forex / usd_acc_symbol_forex
+                                else:
+                                    app.logging.warning(f"Could not calculate valid YF exchange rate: USD_Symbol_Forex={usd_symbol_forex}, USD_Acc_Symbol_Forex={usd_acc_symbol_forex}")
+                            else:
+                                 app.logging.warning(f"No 'Close' data for {usd_acc_symbol_ticker} from Yahoo Finance.")
+                        else:
+                            app.logging.warning(f"Could not download or find ticker {usd_acc_symbol_ticker} from Yahoo Finance.")
+                    else:
+                         app.logging.warning(f"No 'Close' data for {usd_symbol_ticker} from Yahoo Finance.")
+                else:
+                    app.logging.warning(f"Could not download or find ticker {usd_symbol_ticker} from Yahoo Finance.")
+
+                if not pd.isna(calculated_exchange_rate_yf):
+                    # Use the 90% of the portfolio value just in case the forex pair has changed dramatically (Yahoo Finance data is not up to date)
+                    capital = app.cash_balance.loc[capital_datetime, 'value'] * calculated_exchange_rate_yf * 0.9
+                    app.logging.info(f"Capital calculated using Yahoo Finance exchange rate: {calculated_exchange_rate_yf}")
+                else:
+                    app.logging.error("Failed to get a valid exchange rate from Yahoo Finance. Capital calculation will use unconverted base currency value.")
+                    capital = app.cash_balance.loc[capital_datetime, 'value'] # Fallback to unconverted
+
+            except Exception as e:
+                app.logging.error(f"Error during Yahoo Finance download or processing: {e}")
+                capital = app.cash_balance.loc[capital_datetime, 'value'] # Fallback to unconverted
+
+    # If after all attempts, capital is still NaN, fallback to unconverted base currency value
+    if pd.isna(capital):
+        app.logging.warning("All attempts to get/calculate exchange rate failed. Using unconverted base currency value for capital.")
+        capital = app.cash_balance.loc[capital_datetime, 'value']
+
+    app.capital = capital # Assign to app.capital at the end
+    return capital      # Return the calculated capital
 
 def update_capital(app):
     ''' Function to update the capital value'''
@@ -871,22 +916,18 @@ def update_trading_info(app):
     print('Update the previous trading information...')
     app.logging.info('Update the previous trading information...')
     
-    # alpha
-    # # Set the executors list
-    # executors_list = []
-    # # Append the functions to be used in parallel
-    # with ThreadPoolExecutor(3) as executor:
-    #     executors_list.append(executor.submit(request_positions, app)) 
-    #     executors_list.append(executor.submit(request_orders, app)) 
-    #     executors_list.append(executor.submit(update_submitted_orders, app)) 
+    # Set the executors list
+    executors_list = []
+    # Append the functions to be used in parallel
+    with ThreadPoolExecutor(3) as executor:
+        executors_list.append(executor.submit(request_positions, app)) 
+        executors_list.append(executor.submit(request_orders, app)) 
+        executors_list.append(executor.submit(update_submitted_orders, app)) 
 
-    # # Run the functions in parallel
-    # for x in executors_list:
-    #     x.result()
+    # Run the functions in parallel
+    for x in executors_list:
+        x.result()
         
-    request_positions(app)
-    request_orders(app)
-    update_submitted_orders(app)
     
 def update_cash_balance_values_for_signals(app):
     ''' Function to update the cash balance signal and leverage'''
@@ -1223,141 +1264,192 @@ def send_orders(app):
             
         # Update the trading information
         update_trading_info(app)  
-                    
-def strategy(app): 
+                        
+def strategy(app):
     ''' Function to get the strategy run'''
-    
+
     print('Running the strategy for the period...')
-    app.logging.info('Running the strategy for the period...')            
-    
+    app.logging.info('Running the strategy for the period...')
+
     # Set a default dataframe
     base_df = pd.DataFrame()
-    
-    # Get the variables set in the main file
-    variables = tf.extract_variables('main.py')
-    
-    # The historical minute-frequency data address
-    historical_minute_data_address = f'data/app_{app.ticker}_df.csv'
 
-    variables['market_open_time'] = app.market_open_time
-    variables['historical_minute_data_address'] = historical_minute_data_address
-    variables['test_span'] = app.test_span
-        
-    # Get the inputs of the  function
-    signature = inspect.signature(stra.prepare_base_df)
-    
-    # Get the attributes of the trading setup
-    setup_variables = vars(app)
-    
-    # Get the prepare_base_df function's return variables
-    return_variables = tf.get_return_variable_names("strategy.py", "prepare_base_df")
-    
-    # Set a list for the function input parameters
-    prepare_base_func_params = list()
-    # Set the for loop to iterate through each input of the function
-    for name, param in signature.parameters.items():
-        # If the input of the function is located in the setup dictionary of attributes
-        if name in setup_variables.keys():
-            # Save the key value in the list
-            prepare_base_func_params.append(setup_variables[name])
+    # Get the variables set in the main file (user_config/main.py)
+    # Assumes main.py is in CWD or an otherwise accessible path for tf.extract_variables
+    try:
+        variables = tf.extract_variables('main.py')
+    except FileNotFoundError:
+        app.logging.error("main.py (from user_config) not found. Cannot extract strategy variables.")
+        print("Error: user_config/main.py not found. Ensure it's in the correct location.")
+        # Potentially stop execution or use defaults if main.py is critical
+        return # Or raise an error
+
+    # The historical minute-frequency data address is constructed in engine.py and passed via app
+    # historical_minute_data_address = f'data/app_{app.ticker}_df.csv' # This line is redundant here
+
+    # Pass app attributes that might be needed by strategy.py functions
+    # These will be merged/overridden by variables from main.py if names conflict,
+    # or used if main.py doesn't define them but strategy functions need them.
+    effective_vars = vars(app).copy()
+    effective_vars.update(variables) # main.py variables override app attributes if names clash
+
+    # Get the inputs of the prepare_base_df function from strategy.py
+    try:
+        signature_prepare_base = inspect.signature(stra.prepare_base_df)
+        return_variables_prepare = tf.get_return_variable_names("strategy.py", "prepare_base_df")
+    except FileNotFoundError:
+        app.logging.error("strategy.py not found. Cannot inspect prepare_base_df.")
+        print("Error: user_config/strategy.py not found.")
+        return
+    except AttributeError: # If prepare_base_df is not in strategy.py
+        app.logging.error("Function prepare_base_df not found in strategy.py.")
+        print("Error: Function prepare_base_df not found in user_config/strategy.py.")
+        return
+
+
+    # Set a list for the function input parameters for prepare_base_df
+    prepare_base_func_params = []
+    for name, param in signature_prepare_base.parameters.items():
+        if name in effective_vars:
+            prepare_base_func_params.append(effective_vars[name])
+        elif param.default is not inspect.Parameter.empty:
+            prepare_base_func_params.append(param.default)
         else:
-            prepare_base_func_params.append(variables[name])
-            
+            err_msg = f"Parameter '{name}' for strategy.prepare_base_df not found in app attributes or main.py, and no default value."
+            app.logging.error(err_msg)
+            print(f"Error: {err_msg}")
+            return
+
+    # Determine the correct path for base_df_address (should be data/filename.csv)
+    # app.base_df_address is set in trading_app.__init__ based on main.py
+    # It should be like 'data/app_base_df.csv'
+
+    current_base_df_path = app.base_df_address # This should be data/app_base_df.csv or similar
+
+    if not os.path.exists(os.path.dirname(current_base_df_path)) and os.path.dirname(current_base_df_path) != '':
+        os.makedirs(os.path.dirname(current_base_df_path))
+
+
     # If the base_df file exists
-    if os.path.exists(app.base_df_address):
-        
-        # Import the base_df dataframe
-        base_df = pd.read_csv('data/'+app.base_df_address, index_col=0)
-        # Set the index to datetime type
-        base_df.index = pd.to_datetime(base_df.index)
-
-        # If the last index value of base_df is the current period
-        if base_df.index[-1] < app.current_period:
-            
-            # Download historical data
-            update_hist_data(app)
-            
-            # If the app is connected
-            if app.isConnected():
-                # Get the train span for the new shorter base_df
-                if app.frequency_string == 'h':
-                    train_span = app.frequency_number*((app.current_period - base_df.index[-1]) + dt.timedelta(days=1)).days + 500
-                elif app.frequency_string == 'min':
-                    train_span = (60//app.frequency_number)*24*((app.current_period - base_df.index[-1]) + dt.timedelta(days=1)).days + 500
-
-                prepare_base_func_params['train_span'] = train_span
-
-                # Create the new shorter base_df
-                results = stra.prepare_base_df(*prepare_base_func_params)
-                base_df_to_concat = results[return_variables.index('base_df')]
-                
-                # Concat the shorter base_df with the whole one
-                base_df.loc[base_df_to_concat.index, base_df_to_concat.columns] = base_df_to_concat
-                # base_df = pd.concat([base_df.iloc[:-1],base_df_to_concat]) alpha
-                
-                # # Sort the base_df based on its index
-                # base_df.sort_index(inplace=True)
-                # # Drop duplicates
-                # base_df = base_df[~base_df.index.duplicated(keep='last')]
-                
-                # Save the base_df
-                base_df.iloc[-app.train_span:].to_csv('data/'+app.base_df_address)
-                # Save the base_df
-                base_df.to_csv('data/'+app.base_df_address)
-                
-            else:
-                return
-                                            
-    else:
-        # Download historical data
-        update_hist_data(app)
-        
-        if app.isConnected():
-            # Create the new base_df
-            results = stra.prepare_base_df(*prepare_base_func_params)
-            base_df = results[return_variables.index('base_df')]
-            # Sort the base_df based on its index
+    if os.path.exists(current_base_df_path):
+        try:
+            base_df = pd.read_csv(current_base_df_path, index_col=0)
             base_df.index = pd.to_datetime(base_df.index)
-            # Drop duplicates
-            base_df = base_df[~base_df.index.duplicated(keep='last')]
-            # Save the base_df
-            base_df.to_csv('data/'+app.base_df_address)
+        except Exception as e:
+            app.logging.error(f"Error reading existing base_df from {current_base_df_path}: {e}")
+            # Fallback to creating a new one if reading fails
+            base_df = pd.DataFrame() # Ensure base_df is empty for the next block
+
+        if base_df.empty or base_df.index[-1] < app.current_period: # If empty or outdated
+            update_hist_data(app)
+            if app.isConnected():
+                # Logic for train_span for update (simplified for robustness)
+                # Re-prepare using current params, function prepare_base_df should handle train_span internally if needed
+                results_prepare = stra.prepare_base_df(*prepare_base_func_params)
+
+                if 'base_df' not in return_variables_prepare:
+                    err_msg = "'base_df' not found in return values of strategy.prepare_base_df. Check strategy.py."
+                    app.logging.error(err_msg)
+                    print(f"Error: {err_msg}")
+                    return
+                base_df_to_concat = results_prepare[return_variables_prepare.index('base_df')]
+                if not isinstance(base_df_to_concat, pd.DataFrame):
+                    app.logging.error("strategy.prepare_base_df did not return a DataFrame for 'base_df'.")
+                    return
+
+                if base_df.empty: # If it was empty due to read error or initial state
+                    base_df = base_df_to_concat
+                else: # Concatenate/update existing
+                    print('hola1')
+                    print(base_df)
+                    print('hola2')
+                    print(base_df_to_concat)
+                    base_df = pd.concat([base_df,base_df_to_concat])
+                    base_df = base_df[~base_df.index.duplicated(keep='last')].sort_index()
+
+
+                base_df.to_csv(current_base_df_path)
+            else:
+                app.logging.warning("Not connected to IB. Cannot update base_df.")
+                return # Cannot proceed without connection for update
+    else: # File does not exist, create it
+        update_hist_data(app)
+        if app.isConnected():
+            results_prepare = stra.prepare_base_df(*prepare_base_func_params)
+            if 'base_df' not in return_variables_prepare:
+                err_msg = "'base_df' not found in return values of strategy.prepare_base_df. Check strategy.py."
+                app.logging.error(err_msg)
+                print(f"Error: {err_msg}")
+                return
+
+            base_df = results_prepare[return_variables_prepare.index('base_df')]
+            if not isinstance(base_df, pd.DataFrame):
+                app.logging.error("strategy.prepare_base_df did not return a DataFrame for 'base_df' when creating new.")
+                return
+
+            base_df.index = pd.to_datetime(base_df.index)
+            base_df = base_df[~base_df.index.duplicated(keep='last')].sort_index()
+            base_df.to_csv(current_base_df_path)
         else:
-            return            
-        
+            app.logging.warning("Not connected to IB. Cannot create initial base_df.")
+            return # Cannot proceed
+
     # Get the signal value for the current period
-    if app.isConnected():
-        
+    if app.isConnected() and not base_df.empty:
         print('Getting the current signal...')
         app.logging.info('Getting the current signal...')
-        
-        # Save the base_df in the app
-        app.base_df = base_df.copy()
-        
-        # Get the prepare_base_df function's return variables
-        return_variables = tf.get_return_variable_names("strategy.py", "get_signal")
-    
-        results = stra.get_signal(app)
-        
-        # Set the signal
-        app.signal = results[return_variables.index('signal')]
+        app.base_df = base_df.copy() # Ensure app has the latest base_df
 
-        if 'leverage' in return_variables:
-            # Set the leverage
-            app.leverage = results[return_variables.index('leverage')]
-        elif app.leverage is None:
-            # Set the leverage
-            app.leverage = 1.0
-        elif 'leverage' in variables.keys():
-            # Set the signal
-            app.leverage = variables['leverage']
-        
+        try:
+            signature_get_signal = inspect.signature(stra.get_signal)
+            return_variables_signal = tf.get_return_variable_names("strategy.py", "get_signal")
+        except FileNotFoundError:
+             app.logging.error("strategy.py not found. Cannot inspect get_signal.")
+             return
+        except AttributeError:
+             app.logging.error("Function get_signal not found in strategy.py.")
+             return
+
+
+        get_signal_func_params = []
+        for name, param in signature_get_signal.parameters.items():
+            if name == 'app': # Special case for 'app' object itself
+                 get_signal_func_params.append(app)
+            elif name in effective_vars:
+                 get_signal_func_params.append(effective_vars[name])
+            elif param.default is not inspect.Parameter.empty:
+                 get_signal_func_params.append(param.default)
+            else:
+                err_msg = f"Parameter '{name}' for strategy.get_signal not found or no default."
+                app.logging.error(err_msg)
+                print(f"Error: {err_msg}")
+                return
+
+        results_signal = stra.get_signal(*get_signal_func_params)
+
+        if 'signal' not in return_variables_signal:
+             err_msg = "'signal' not found in return values of strategy.get_signal. Check strategy.py."
+             app.logging.error(err_msg)
+             print(f"Error: {err_msg}")
+             return
+        app.signal = results_signal[return_variables_signal.index('signal')]
+
+        if 'leverage' in return_variables_signal:
+            app.leverage = results_signal[return_variables_signal.index('leverage')]
+        elif 'leverage' in effective_vars and effective_vars['leverage'] is not None:
+            app.leverage = effective_vars['leverage'] # From main.py or app default
+        elif app.leverage is None: # If not set by strategy and not in main.py (or was None)
+             app.leverage = 1.0 # Fallback default
+
         print('The current signal was successfully created...')
         app.logging.info('The current signal was successfully created...')
-    
-    else:
+    elif base_df.empty:
+        app.logging.error("base_df is empty. Cannot get signal.")
         return
-            
+    else: # Not connected
+        app.logging.warning("Not connected to IB. Cannot get signal.")
+        return
+
     print('The strategy for the period was successfully run...')
     app.logging.info('The strategy for the period was successfully run...')
     
@@ -1415,7 +1507,7 @@ def save_data(app):
     tf.save_xlsx(dict_df = dictfiles, path = 'data/database.xlsx')
 
     # Save the historical data
-    app.historical_data.to_csv('data/'+app.historical_data_address)
+    app.historical_data.to_csv(app.historical_data_address)
     
     print("All data saved...")
     app.logging.info("All data saved...")
@@ -1475,19 +1567,7 @@ def run_strategy(app):
 def run_strategy_for_the_period(app):
     """ Function to run the whole strategy together with the connection monitor function"""
 
-    # alpha
-    # # Set the executors list
-    # executors_list = []
-    # # Append the functions to be used in parallel
-    # with ThreadPoolExecutor(2) as executor:
-    #     # Run the strategy, signal, and send orders
-    #     executors_list.append(executor.submit(app.run_strategy)) 
-    #     # Check the connection status throughout the entire strategy running
-    #     executors_list.append(executor.submit(app.connection_monitor)) 
-
-    # for x in executors_list:
-    #     x.result()
-        
+    # Run the strategy        
     run_strategy(app)
     # app.connection_monitor()
         
