@@ -4,8 +4,6 @@
 - You may not use this file except in compliance with the License. 
 - You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 
 - Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# Import the engine file
-from ib_forex_setup import engine
 """
 
 # Import the necessary libraries
@@ -23,7 +21,6 @@ from ib_forex_setup import trading_functions as tf
 from ib_forex_setup import setup_functions as sf
 from ib_forex_setup import setup_for_download_data as sdd
 from ib_forex_setup.setup import trading_app
-import pandas as pd
 
 now_ = dt.datetime.now()
 
@@ -357,161 +354,200 @@ def run_trading_setup_loop(host, port, account, client_id, data_frequency, londo
             logging.info("Let's wait until the trading week close datetime arrives")
             while (dt.datetime.now() >= day_end_datetime) and (dt.datetime.now() < day_start_datetime): continue
 
-def main():   
-     
-    # Get the variables set in the main file
-    variables = tf.extract_variables('main.py')
-    
-    host = variables['host']
-    account = variables['account']
-    timezone = variables['timezone']
-    port = variables['port']
-    account_currency = variables['account_currency']
-    symbol = variables['symbol']
-    data_frequency = variables['data_frequency']
-    local_restart_hour = variables['local_restart_hour']
-    historical_data_address = variables['historical_data_address']
-    base_df_address = variables['base_df_address']
-    train_span = variables['train_span']
-    test_span_days = variables['test_span_days']
-    client_id = variables['client_id']
-    smtp_username = variables['smtp_username']
-    to_email = variables['to_email']
-    password = variables['password']
-    trail = variables['trail']
-    seed = variables['seed']
-    
+def main():
+
+    # Get the variables set in the main file (user_config/main.py)
+    try:
+        variables = tf.extract_variables('main.py') # Assumes main.py is in CWD relative to where engine.py is run
+    except FileNotFoundError:
+        print("CRITICAL ERROR: user_config/main.py not found. Please ensure it exists in the correct directory.")
+        logging.critical("user_config/main.py not found. Setup cannot proceed.")
+        return # Cannot proceed without main configurations
+
+    # Essential variables with error handling
+    try:
+        host = variables['host']
+        account = variables['account']
+        timezone = variables['timezone']
+        port = variables['port']
+        account_currency = variables['account_currency']
+        symbol = variables['symbol']
+        data_frequency = variables['data_frequency']
+        local_restart_hour = variables['local_restart_hour']
+        # File names are expected from main.py, paths will be constructed
+        historical_data_address_name = variables['historical_data_address']
+        base_df_address_name = variables['base_df_address']
+        train_span = variables['train_span']
+        test_span_days = variables['test_span_days']
+        client_id = variables['client_id']
+        smtp_username = variables['smtp_username']
+        to_email = variables['to_email']
+        password = variables['password'] # Email password
+        seed = variables['seed']
+        trail = variables.get('trail', False) # Optional, defaults to False
+
+    except KeyError as e:
+        logging.error(f"Essential variable {e} not found in user_config/main.py. Please define it.")
+        print(f"CRITICAL ERROR: Essential variable {e} not found in user_config/main.py. Exiting.")
+        return
+
+    # --- Path Construction ---
+    # Assume 'data' and 'data/models' are subdirectories of where 'main.py' is (i.e., CWD)
+    # This is a common convention for user-managed configurations.
+    data_dir = 'data'
+    models_dir = os.path.join(data_dir, 'models')
+    log_dir = os.path.join(data_dir, 'log') # For logger path if needed, though logger already prepends data/log
+
+    # Ensure directories exist
+    if not os.path.exists(data_dir): os.makedirs(data_dir)
+    if not os.path.exists(models_dir): os.makedirs(models_dir)
+    if not os.path.exists(log_dir): os.makedirs(log_dir) # Ensure log directory also exists
+
+    # Construct full paths for data files
+    historical_minute_data_address = os.path.join(data_dir, f'app_{symbol}_df.csv') # Consistent naming
+    # base_df_address should be constructed, main.py provides the name part
+    if base_df_address_name.startswith(data_dir + os.path.sep): # If user provided 'data/file.csv'
+        base_df_address = base_df_address_name
+    else: # User provided 'file.csv'
+        base_df_address = os.path.join(data_dir, base_df_address_name)
+
+    # historical_data_address is for the *resampled* data file name
+    if historical_data_address_name.startswith(data_dir + os.path.sep):
+        resampled_historical_data_address = historical_data_address_name
+    else:
+        resampled_historical_data_address = os.path.join(data_dir, historical_data_address_name)
+
+
     # Set the London-timezone hour as the trading start hour
     london_start_hour = 23
-    
-    # Get the local timezone hours that match the Easter timezone hours
+
     restart_hour, restart_minute, day_end_hour, day_end_minute, trading_start_hour = tf.get_end_hours(timezone, london_start_hour, local_restart_hour)
-    
-    # Get the market open and close datetimes of the current week
     market_open_time, market_close_time = tf.define_trading_week(timezone, trading_start_hour, day_end_minute)
-    
-    month_string = str(market_open_time.month) if market_open_time.month>=10 else '0'+str(market_open_time.month)
-    day_string = str(market_open_time.day-1) if (market_open_time.day-1)>=10 else '0'+str(market_open_time.day-1)
 
-    # The historical minute-frequency data address
-    historical_minute_data_address = f'data/app_{symbol}_df.csv'
-        
-    # Set the test span
-    test_span = test_span_days*tf.get_periods_per_day(data_frequency)
-    
-    # Add the test span value to the train span
-    train_span += test_span
-    
-    variables['market_open_time'] = market_open_time
-    variables['historical_minute_data_address'] = historical_minute_data_address
-    variables['test_span'] = test_span
-    variables['train_span'] = train_span
-    
-    signature = inspect.signature(stra.strategy_parameter_optimization)
-    
-    stra_func_params = [variables[name] for name, param in signature.parameters.items()]
-    
-    # Create 10 uniformly-distributed random numbers
-    np.random.seed(seed)
+    # Date stringing for model filenames (based on day *before* market_open_time)
+    date_for_model_name = market_open_time - dt.timedelta(days=1)
+    year_str_model = str(date_for_model_name.year)
+    month_str_model = f"{date_for_model_name.month:02d}"
+    day_str_model = f"{date_for_model_name.day:02d}"
+    model_pickle_path = os.path.join(models_dir, f'stra_opt_{year_str_model}_{month_str_model}_{day_str_model}.pickle')
 
-    # If you don't have historical minute-frequency data
-    if os.path.exists(historical_minute_data_address)==False:
-        print('='*100)
-        print('='*100)
-        print('='*100)
-        print('Creating the whole historical minute-frequency data...')
-        sdd.run_hist_data_download_app(historical_minute_data_address, historical_data_address, symbol, timezone, data_frequency, 'false', '10 D', train_span, market_open_time)
-        print('='*100)
-        print('='*100)
-        print('='*100)
-        print('Optimizating the strategy parameters...')
-        # Optimize the strategy parameters
-        stra.strategy_parameter_optimization(*stra_func_params)    
-        
-        dict1 = {'stra_opt':1}
-            
-        with open(f'data/models/stra_opt_{market_open_time.year}_{month_string}_{day_string}.pickle', 'wb') as handle:
-            pickle.dump(dict1, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    # If you do have a historical minute-frequency data
-    else:
-        # Set the now datetime with the 23:59:00 time
-        now = dt.datetime.now()
-        # Get the Saturdays list
-        saturdays = tf.saturdays_list(now.date())
-        # Import the historical data
-        end_df = pd.read_csv(historical_minute_data_address, index_col=0)
-        # Set the now datetime to the first index value of the dataframe
-        now = end_df.index[0]
-        if dt.datetime.strptime(now,'%Y-%m-%d %H:%M:%S').year>2005:
-            # Set the index to datetime type
-            end_df.index = pd.to_datetime(end_df.index)
-            # Get the Saturdays list from January 2005 to the now datetime
-            saturdays = [date0 for date0 in saturdays if date0<=now]         
-            
-            # Update the historical minute-frequency and the resampled data to get data from 2005 onwards
-            sdd.run_hist_data_download_app(historical_minute_data_address, historical_data_address, symbol, timezone, data_frequency, 'false', '10 D', train_span, market_open_time)
-            # Update the historical minute-frequency and the resampled data
-            sdd.run_hist_data_download_app(historical_minute_data_address, historical_data_address, symbol, timezone, data_frequency, 'true', '10 D', train_span, market_open_time)
+    test_span = test_span_days * tf.get_periods_per_day(data_frequency)
+    # train_span from main.py is the one used for prepare_base_df and strategy_parameter_optimization
+    # The original code `train_span += test_span` effectively meant that the `train_span` in `main.py` was the
+    # span *before* adding test_span for the full optimization dataset.
+    # For clarity, strategy_parameter_optimization should just receive the original train_span and test_span.
+
+    # Prepare parameters for strategy_parameter_optimization
+    stra_opt_pass_variables = variables.copy() # Start with all variables from main.py
+    stra_opt_pass_variables.update({ # Add or override with derived/specific ones
+        'market_open_time': market_open_time,
+        'historical_minute_data_address': historical_minute_data_address, # Path to raw minute data
+        'base_df_address': base_df_address, # Path for processed base_df
+        'test_span': test_span,
+        'train_span': train_span, # The train_span as defined in main.py
+        'seed': seed,
+        'data_frequency': data_frequency
+        # Add other necessary parameters if strategy_parameter_optimization signature requires them
+        # and they are not directly in `variables` from main.py.
+    })
+
+
+    try:
+        signature_opt = inspect.signature(stra.strategy_parameter_optimization)
+    except AttributeError:
+        logging.critical("Function strategy_parameter_optimization not found in strategy.py. Cannot proceed with optimization logic.")
+        return
+
+    stra_func_params = []
+    for name, param in signature_opt.parameters.items():
+        if name in stra_opt_pass_variables:
+            stra_func_params.append(stra_opt_pass_variables[name])
+        elif param.default is not inspect.Parameter.empty:
+            stra_func_params.append(param.default)
         else:
-            # Update the historical minute-frequency and the resampled data
-            sdd.run_hist_data_download_app(historical_minute_data_address, historical_data_address, symbol, timezone, data_frequency, 'true', '10 D', train_span, market_open_time)
+            logging.error(f"Parameter '{name}' for strategy.strategy_parameter_optimization not found or no default.")
+            print(f"CRITICAL ERROR: Parameter '{name}' for strategy.strategy_parameter_optimization is missing. Exiting.")
+            return
 
-        # If it's the first time you begin to go live trading
-        if (os.path.exists(f'data/models/stra_opt_{market_open_time.year}_{month_string}_{day_string}.pickle')==False):
-            print('='*100)
-            print('='*100)
-            print('='*100)
-            print('Optimizating the strategy parameters...')
-            # Optimize the strategy parameters
-            stra.strategy_parameter_optimization(*stra_func_params)
-        
-            dict1 = {'stra_opt':1}
-                
-            with open(f'data/models/stra_opt_{market_open_time.year}_{month_string}_{day_string}.pickle', 'wb') as handle:
-                pickle.dump(dict1, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    np.random.seed(seed) # For any direct np.random use in strategy
 
-    if os.path.exists("data/database.xlsx")==False:
-        print('='*100)
-        print('='*100)
-        print('='*100)
-        print('Creating the trading information database...')
-        # Create the Excel workbook to save the trading information
-        cd.create_trading_info_workbook(smtp_username, to_email , password)
-        
-    print('='*100)
-    print('='*100)
-    print('='*100)
-    print('Running the trading app for the week...')
-    # Run the app loop
-    run_trading_setup_loop(host, port, account, client_id, data_frequency, london_start_hour, local_restart_hour, timezone, dt.datetime.now(), account_currency, symbol, 
-                           historical_data_address, base_df_address, train_span, 1, trail)     
-    print('='*100)
-    print('='*100)
-    print('='*100)
-    print('Updating the minute-frequency and resampled data...')
-    # Update the historical minute-frequency and the resampled data
-    sdd.run_hist_data_download_app(historical_minute_data_address, historical_data_address, symbol, timezone, data_frequency, 'true', '10 D', train_span, market_open_time)
-    
-    # Get the local timezone hours that match the Easter timezone hours
-    restart_hour, restart_minute, day_end_hour, day_end_minute, trading_start_hour = tf.get_end_hours(timezone, london_start_hour, local_restart_hour)
-    
-    # Get the market open and close datetimes of the current week
-    market_open_time, market_close_time = tf.define_trading_week(timezone, trading_start_hour, day_end_minute)
+    # Logic for historical data download and initial optimization
+    if not os.path.exists(historical_minute_data_address):
+        print('='*100 + "\nCreating the whole historical minute-frequency data...\n" + '='*100)
+        logging.info('Creating the whole historical minute-frequency data...')
+        # Note: sdd.run_hist_data_download_app's 2nd arg `historical_data_address` is for the *resampled* output name
+        sdd.run_hist_data_download_app(historical_minute_data_address, resampled_historical_data_address, symbol, timezone, data_frequency, 'false', '10 D', train_span, market_open_time)
 
-    if (os.path.exists(f'data/models/stra_opt_{market_open_time.year}_{month_string}_{day_string}.pickle')==False):
-        print('='*100)
-        print('='*100)
-        print('='*100)
-        print('Optimizating the strategy parameters...')
-
-        # Optimize the strategy parameters once the market closes
+        print('='*100 + "\nOptimizing the strategy parameters (initial)...\n" + '='*100)
+        logging.info('Optimizing the strategy parameters (initial)...')
         stra.strategy_parameter_optimization(*stra_func_params)
-  
-        dict1 = {'stra_opt':1}
-            
-        with open(f'data/models/stra_opt_{market_open_time.year}_{month_string}_{day_string}.pickle', 'wb') as handle:
-            pickle.dump(dict1, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        with open(model_pickle_path, 'wb') as handle:
+            pickle.dump({'stra_opt_done_for_week': True, 'date': date_for_model_name.isoformat()}, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    else:
+        print('Updating historical minute-frequency data...')
+        logging.info('Updating historical minute-frequency data...')
+        sdd.run_hist_data_download_app(historical_minute_data_address, resampled_historical_data_address, symbol, timezone, data_frequency, 'true', '10 D', train_span, market_open_time)
+
+        if not os.path.exists(model_pickle_path):
+            print('='*100 + "\nOptimizing the strategy parameters for the current week...\n" + '='*100)
+            logging.info('Optimizing the strategy parameters for the current week...')
+            stra.strategy_parameter_optimization(*stra_func_params)
+            with open(model_pickle_path, 'wb') as handle:
+                pickle.dump({'stra_opt_done_for_week': True, 'date': date_for_model_name.isoformat()}, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        else:
+            print(f"Strategy parameters already optimized for the week of {market_open_time.date()} (model file: {model_pickle_path}).")
+            logging.info(f"Strategy parameters already optimized for week of {market_open_time.date()}.")
+
+    # Database creation
+    database_path = os.path.join(data_dir, "database.xlsx")
+    if not os.path.exists(database_path):
+        print('='*100 + "\nCreating the trading information database...\n" + '='*100)
+        logging.info('Creating the trading information database...')
+        cd.create_trading_info_workbook(smtp_username, to_email, password) # Assumes create_database writes to data/database.xlsx & data/email_info.xlsx
+
+    print('='*100 + "\nRunning the trading app for the week...\n" + '='*100)
+    logging.info('Running the trading app for the week...')
+    run_trading_setup_loop(host, port, account, client_id, data_frequency, london_start_hour, local_restart_hour, timezone, dt.datetime.now(), account_currency, symbol,
+                           resampled_historical_data_address, base_df_address, train_span, 1, trail) # test_span=1 for live trading
+
+    # Post-week activities
+    print('='*100 + "\nUpdating minute-frequency and resampled data post-trading week...\n" + '='*100)
+    logging.info('Updating minute-frequency and resampled data post-trading week...')
+    sdd.run_hist_data_download_app(historical_minute_data_address, resampled_historical_data_address, symbol, timezone, data_frequency, 'true', '10 D', train_span, market_open_time)
+
+    # Prepare for next week's optimization check
+    next_week_market_open_time, _ = tf.define_trading_week(timezone, trading_start_hour, day_end_minute, base_date=market_close_time + dt.timedelta(days=1))
+    date_for_next_model_name = next_week_market_open_time - dt.timedelta(days=1)
+    next_year_str = str(date_for_next_model_name.year)
+    next_month_str = f"{date_for_next_model_name.month:02d}"
+    next_day_str = f"{date_for_next_model_name.day:02d}"
+    next_week_model_pickle_path = os.path.join(models_dir, f'stra_opt_{next_year_str}_{next_month_str}_{next_day_str}.pickle')
+
+    if not os.path.exists(next_week_model_pickle_path):
+        print('='*100 + "\nOptimizing strategy parameters for the upcoming week...\n" + '='*100)
+        logging.info('Optimizing strategy parameters for the upcoming week...')
+
+        stra_opt_pass_variables_next_week = stra_opt_pass_variables.copy()
+        stra_opt_pass_variables_next_week['market_open_time'] = next_week_market_open_time
+
+        stra_func_params_next_week = []
+        for name, param in signature_opt.parameters.items():
+            if name in stra_opt_pass_variables_next_week:
+                stra_func_params_next_week.append(stra_opt_pass_variables_next_week[name])
+            elif param.default is not inspect.Parameter.empty:
+                stra_func_params_next_week.append(param.default)
+            else:
+                logging.error(f"Parameter '{name}' for next week's strategy.strategy_parameter_optimization not found.")
+                print(f"CRITICAL ERROR: Parameter '{name}' for next week's optimization missing. Exiting.")
+                return
+
+        stra.strategy_parameter_optimization(*stra_func_params_next_week)
+        with open(next_week_model_pickle_path, 'wb') as handle:
+            pickle.dump({'stra_opt_done_for_week': True, 'date': date_for_next_model_name.isoformat()}, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    else:
+         print(f"Strategy parameters already optimized for upcoming week of {next_week_market_open_time.date()}.")
+         logging.info(f"Strategy parameters already optimized for upcoming week of {next_week_market_open_time.date()}.")
 
 
 main()
