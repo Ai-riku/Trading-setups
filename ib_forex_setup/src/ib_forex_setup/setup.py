@@ -4,8 +4,6 @@
 - You may not use this file except in compliance with the License. 
 - You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 
 - Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# Import the engine file
-from ib_forex_setup import engine
 """
 
 # Import the necessary libraries
@@ -123,7 +121,7 @@ class trading_app(EClient, EWrapper):
         self.ticker = symbol
         
         # Import the historical data 
-        self.historical_data = pd.read_csv('data/'+historical_data_address, index_col=0)
+        self.historical_data = pd.read_csv(historical_data_address, index_col=0)
         # Convert the historical data index to datetime
         self.historical_data.index = pd.to_datetime(self.historical_data.index)
         
