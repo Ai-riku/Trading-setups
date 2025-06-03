@@ -4,8 +4,6 @@
 - You may not use this file except in compliance with the License. 
 - You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 
 - Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# Import the engine file
-from ib_forex_setup import engine
 """
 
 # Import the necessary libraries
@@ -403,7 +401,7 @@ def update_historical_resampled_data(historical_minute_data, historical_data_add
                 historical_data = tf.resample_df(tf.get_mid_series(historical_minute_data), data_frequency, start=f'{hour_string}h{minute_string}min')
 
                 # Subset the resample historical data to "train_span observations
-                historical_data.tail(train_span).to_csv('data/'+historical_data_address)
+                historical_data.tail(train_span).to_csv(historical_data_address)
     
         except:
 
@@ -411,7 +409,7 @@ def update_historical_resampled_data(historical_minute_data, historical_data_add
             historical_data = tf.resample_df(tf.get_mid_series(historical_minute_data), data_frequency, start=f'{hour_string}h{minute_string}min')
 
             # Subset the resample historical data to "train_span observations
-            historical_data.tail(train_span).to_csv('data/'+historical_data_address)
+            historical_data.tail(train_span).to_csv(historical_data_address)
     
     # If it's a string address
     else:
@@ -432,7 +430,7 @@ def update_historical_resampled_data(historical_minute_data, historical_data_add
                 historical_data = tf.resample_df(tf.get_mid_series(historical_minute_data), data_frequency, start=f'{hour_string}h{minute_string}min')
 
                 # Subset the resample historical data to "train_span observations
-                historical_data.tail(train_span).to_csv('data/'+historical_data_address)
+                historical_data.tail(train_span).to_csv(historical_data_address)
         
         except:
             print('Resample of historical minute data as per the data frequency is in process...')
@@ -440,7 +438,7 @@ def update_historical_resampled_data(historical_minute_data, historical_data_add
             historical_data = tf.resample_df(tf.get_mid_series(historical_minute_data), data_frequency, start=f'{hour_string}h{minute_string}min')
   
             # Subset the resample historical data to "train_span observations
-            historical_data.tail(train_span).to_csv('data/'+historical_data_address)
+            historical_data.tail(train_span).to_csv(historical_data_address)
     
     print('Resample of historical minute data as per the data frequency is completed...')
     
