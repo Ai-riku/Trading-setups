@@ -4,8 +4,6 @@
 - You may not use this file except in compliance with the License. 
 - You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 
 - Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# Import the engine file
-from ib_forex_setup import engine
 """
 
 # Import the necessary libraries
@@ -81,6 +79,9 @@ def tpOrder(direction,quantity,tp_price):
 
 def ForexContract(symbol,sec_type="CASH",exchange="IDEALPRO"):
     ''' Function to set the Forex contract object'''
+    if not (isinstance(symbol, str) and len(symbol) == 6 and symbol.isalpha()):
+        raise ValueError(f"Forex symbol '{symbol}' must be a 6-character alphabetic string (e.g., EURUSD).")
+
     # Set the variable as a contract object
     contract = Contract()
     # Set the base currency
