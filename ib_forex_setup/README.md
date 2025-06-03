@@ -2,6 +2,16 @@
 
 This folder contains a working trading setup you can use to learn how to trade in the financial markets algorithmically. The setup can be used to trade any forex asset using the Interactive Brokers API. 
 
+-----
+
+## Licensed under the Apache License, Version 2.0 (the "License")
+- Copyright 2025 QuantInsti Quantitative Learnings Pvt Ltd.
+- You may not use this file except in compliance with the License.
+- You may obtain a copy of the License at [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0)
+- Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+
+-----
+
 ## Disclaimer
 **This trading setup and its strategy are just a template and should not be used for live trading without appropriate backtesting and tweaking of the strategy parameters.**
 
