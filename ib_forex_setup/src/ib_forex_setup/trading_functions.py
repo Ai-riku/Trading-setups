@@ -4,8 +4,6 @@
 - You may not use this file except in compliance with the License. 
 - You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 
 - Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# Import the engine file
-from ib_forex_setup import engine
 """
 
 # Import the necessary libraries
@@ -122,15 +120,28 @@ def resample_df(dfraw,frequency,start='00h00min'):
         - Designed for session-based trading strategies
     """
 
+    # Validate frequency input
+    if not isinstance(frequency, str) or \
+       not (('h' in frequency and frequency[:-1].isdigit() and len(frequency) > 1) or \
+            ('min' in frequency and frequency[:-3].isdigit() and len(frequency) > 3)):
+        raise ValueError(f"Frequency string '{frequency}' is malformed. Expected format like '<number>h' or '<number>min'.")
+
     # Copy the dataframe
-    df = dfraw.copy()   
+    df = dfraw.copy()
     # Get the start hour
     hour=int(start[0:2])
-    # Get the start minute time    
+    # Get the start minute time
     minutes=int(start[3:5])
-    
+
     # Set the first day of the new dataframe
-    origin = df[(df.index.hour==hour) & (df.index.minute==minutes)].index[0]
+    origin_candidates = df[(df.index.hour==hour) & (df.index.minute==minutes)]
+    if origin_candidates.empty:
+        # Attempt to find the earliest available time if the exact start is not present,
+        # or raise an error if strict start time adherence is required.
+        # For now, raising an error as per original intent.
+        raise ValueError(f"Start time {start} not found in dataframe index. Consider checking data availability or adjusting start time.")
+    origin = origin_candidates.index[0]
+
     # Subset the dataframe from the origin onwards
     df = df[df.index>=origin]
 
@@ -147,9 +158,9 @@ def resample_df(dfraw,frequency,start='00h00min'):
                  # Resample the Low price
                  Low=('Low','min'),
                  # Get the High-price index
-                 High_time=('High', lambda x : np.nan if x.count() == 0 else x.idxmax()),
+                 High_time=('High', lambda x : pd.NaT if x.empty or x.isnull().all() else x.idxmax()),
                  # Get the Low-price index
-                 Low_time=('Low', lambda x : np.nan if x.count() == 0 else x.idxmin()),
+                 Low_time=('Low', lambda x : pd.NaT if x.empty or x.isnull().all() else x.idxmin()),
                  # Get the Open-price index
                  Open_time=('datetime','first'),
                  # Get the Close-price index
@@ -157,16 +168,21 @@ def resample_df(dfraw,frequency,start='00h00min'):
             # Create a column and set each row to True in case the high price index is sooner than the low price index
             .assign(high_first = lambda x: x["High_time"] < x["Low_time"])
             )
-    
+
     final_df = df2.shift(1)
-        
-    if 'h' in frequency:
-        final_df.loc[df2.index[-1]+dt.timedelta(hours=int(frequency[:frequency.find("h")])),:] = df2.loc[df2.index[-1],:]
+
+    if not df2.empty: # Ensure df2 is not empty before trying to access its last index
+        if 'h' in frequency:
+            final_df.loc[df2.index[-1]+dt.timedelta(hours=int(frequency[:frequency.find("h")])),:] = df2.loc[df2.index[-1],:]
+        else: # Assumes 'min' if not 'h' based on prior validation
+            final_df.loc[df2.index[-1]+dt.timedelta(minutes=int(frequency[:frequency.find("min")])),:] = df2.loc[df2.index[-1],:]
     else:
-        final_df.loc[df2.index[-1]+dt.timedelta(minutes=int(frequency[:frequency.find("min")])),:] = df2.loc[df2.index[-1],:]
-        
+        # Handle empty df2 case, perhaps log a warning or return empty final_df
+        # For now, it will result in an empty final_df after dropna if df2 was empty.
+        pass
+
     final_df.dropna(inplace=True)
-        
+
     return final_df
 
 def directional_change_events(data, theta=0.004, columns=None):
@@ -542,7 +558,7 @@ def save_xlsx(dict_df, path):
         dict_df[key].to_excel(writer, key)
     writer.close()
 
-def get_end_hours(timezone, london_start_hour, local_restart_hour):
+def get_end_hours_old(timezone, london_start_hour, local_restart_hour):
     """ Function to get the end hours based on the Eastern timezone """
     
     # Set the easter timezone string
@@ -566,6 +582,7 @@ def get_end_hours(timezone, london_start_hour, local_restart_hour):
     trader_datetime_negative_sign_bool = trader_datetime_timestamp.startswith("-")
     # Set the trader's timezone difference sign number
     trader_datetime_sign = -1 if trader_datetime_negative_sign_bool else +1
+    
     try:
         # Get the number of minutes of the difference between both datetimes
         minutes = int(str(abs(trader_datetime.replace(tzinfo=None) - eastern.replace(tzinfo=None)))[2:4])
@@ -602,6 +619,66 @@ def get_end_hours(timezone, london_start_hour, local_restart_hour):
     trading_start_hour = london_start_hour + trader_datetime_sign*int(trader_datetime_timestamp[1:3])
     trading_start_hour = trading_start_hour if trading_start_hour<=23 else (trading_start_hour - 24)
                     
+    return restart_hour, restart_minute, day_end_hour, day_end_minute, trading_start_hour
+
+def get_end_hours(timezone, london_start_hour, local_restart_hour):
+    """ Function to get the end hours based on the Eastern timezone """
+
+    # Set the easter timezone string
+    est = 'US/Eastern'
+    # Get today's datetime
+    today_datetime = dt.datetime.now()
+    # Set the eastern-timezone-based today's datetime
+    eastern = today_datetime.astimezone(pytz.timezone(est))
+    # Get the timezone difference hour and minute
+    eastern_timestamp = eastern.strftime("%z")
+    # Get the eastern timezone difference sign boolean
+    eastern_negative_sign_bool = eastern_timestamp.startswith("-")
+    # Set the eastern timezone difference sign number
+    eastern_sign = -1 if eastern_negative_sign_bool else +1
+
+    # Set the trader's timezone now datetime
+    trader_datetime = today_datetime.astimezone(pytz.timezone(timezone))
+    # Get the timezone difference hour and minute
+    trader_datetime_timestamp = trader_datetime.strftime("%z")
+    # Get the trader's timezone difference sign boolean
+    trader_datetime_negative_sign_bool = trader_datetime_timestamp.startswith("-")
+    # Set the trader's timezone difference sign number
+    trader_datetime_sign = -1 if trader_datetime_negative_sign_bool else +1
+
+    # Calculate minute difference robustly
+    time_difference_seconds = abs((trader_datetime.replace(tzinfo=None) - eastern.replace(tzinfo=None)).total_seconds())
+    minutes = int((time_difference_seconds % 3600) // 60)
+
+    # If the trader's timezone sign is different from Eastern's
+    if trader_datetime_sign != eastern_sign:
+        # Set the restart hour
+        restart_hour = local_restart_hour + int(eastern_timestamp[1:3])+int(trader_datetime_timestamp[1:3])
+        restart_hour = restart_hour if restart_hour<=23 else restart_hour - 24
+
+        # Set the day-end hour
+        day_end_hour = 17 + int(eastern_timestamp[1:3])+int(trader_datetime_timestamp[1:3])
+        day_end_hour = day_end_hour if day_end_hour<=23 else day_end_hour - 24
+
+        # Set the restart minute
+        restart_minute = day_end_minute = minutes
+    # If the trader's timezone sign is equal to Eastern's
+    else:
+        # Set the restart hour
+        restart_hour = local_restart_hour + int(eastern_timestamp[1:3])-int(trader_datetime_timestamp[1:3])
+        restart_hour = restart_hour if restart_hour<=23 else restart_hour - 24
+
+        # Set the day-end hour
+        day_end_hour = 17 + int(eastern_timestamp[1:3])-int(trader_datetime_timestamp[1:3])
+        day_end_hour = day_end_hour if day_end_hour<=23 else day_end_hour - 24
+
+        # Set the restart minute
+        restart_minute = day_end_minute = minutes
+
+    # Set the trading start hour
+    trading_start_hour = london_start_hour + trader_datetime_sign*int(trader_datetime_timestamp[1:3])
+    trading_start_hour = trading_start_hour if trading_start_hour<=23 else (trading_start_hour - 24)
+
     return restart_hour, restart_minute, day_end_hour, day_end_minute, trading_start_hour
         
 def get_data_frequency_values(data_frequency):
