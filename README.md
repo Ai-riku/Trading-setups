@@ -43,7 +43,6 @@ In case of questions, please write to:
 - Your support manager (if you’re a present EPAT student)
 - The alumni team (if you’re a past EPAT student and an alumnus)
 
-
 <a id='products'></a>
 ## QuantInsti Learning Products
 - The trading setups are built based on [EPAT](https://www.quantinsti.com/epat?utm_source=github&utm_medium=referral&utm_campaign=trading-setups&utm_content=ib-forex-setup-readme) content
