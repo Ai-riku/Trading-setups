@@ -80,7 +80,7 @@ In case of questions, please write to:
 
 <a id='products'></a>
 ## QuantInsti Learning Products
-- The trading setups are built based on [EPAT](https://www.quantinsti.com/epat?utm_source=github&utm_medium=referral&utm_campaign=trading-setups&utm_content=ib-forex-setup-readme) content
+- The trading setup is built based on [EPAT](https://www.quantinsti.com/epat?utm_source=github&utm_medium=referral&utm_campaign=trading-setups&utm_content=ib-forex-setup-readme) content
 - To learn more about our products visit [QuantInsti](https://www.quantinsti.com/?utm_source=github&utm_medium=referral&utm_campaign=trading-setups&utm_content=ib-forex-setup-readme)
 
 <a id='start'></a>
