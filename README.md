@@ -30,7 +30,8 @@ This folder will contain different trading setups you can use to learn how to t
 ## Table of contents
 1. [Contributors](#contributors)
 2. [Ask for help](#help)
-3. [Available trading setups](#setups)
+3. [QuantInsti Learning Products](#products)
+4. [Available trading setups](#setups)
 
 <a id='contributors'></a>
 ## Contributors
@@ -41,7 +42,12 @@ QuantInsti's EPAT content team is responsible for maintaining and contributing t
 In case of questions, please write to:
 - Your support manager (if you’re a present EPAT student)
 - The alumni team (if you’re a past EPAT student and an alumnus)
-- QuantInsti coordinates you, see on our “Contact Us” page: [https://www.quantinsti.com/contact-us](https://www.quantinsti.com/contact-us)
+
+
+<a id='products'></a>
+## QuantInsti Learning Products
+- [EPAT]([https://www.quantinsti.com/contact-us](https://www.quantinsti.com/epat?utm_source=github&utm_medium=referral&utm_campaign=trading-setups&utm_content=ib-forex-setup-readme)
+- [Quantra](https://quantra.quantinsti.com/?utm_source=github&utm_medium=referral&utm_campaign=trading-setups&utm_content=ib-forex-setup-readme)
 
 <a id='setups'></a>
 ## Available trading setups
