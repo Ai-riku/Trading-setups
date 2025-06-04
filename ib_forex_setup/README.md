@@ -38,7 +38,8 @@ This folder contains a working trading setup you can use to learn how to trade i
 2. [Setup details](#details)
 3. [Read the documentation](#documentation)
 4. [Ask for help](#help)
-5. [Quick start](#start)
+5. [QuantInsti Learning Products](#products)
+6. [Quick start](#start)
 
 <a id='author'></a>
 ## Author
@@ -76,7 +77,12 @@ You can use this setup only for forex assets with an Interactive Brokers API.
 In case of questions, please write to:
 - Your support manager (if you’re a present EPAT student)
 - The alumni team (if you’re a past EPAT student and an alumnus)
-- QuantInsti coordinates you, see on our “Contact Us” page: [https://www.quantinsti.com/contact-us](https://www.quantinsti.com/contact-us)
+
+
+<a id='products'></a>
+## QuantInsti Learning Products
+- [EPAT]([https://www.quantinsti.com/contact-us](https://www.quantinsti.com/epat?utm_source=github&utm_medium=referral&utm_campaign=trading-setups&utm_content=ib-forex-setup-readme))
+- [Quantra](https://quantra.quantinsti.com/?utm_source=github&utm_medium=referral&utm_campaign=trading-setups&utm_content=ib-forex-setup-readme)
 
 <a id='start'></a>
 ## Quick start
