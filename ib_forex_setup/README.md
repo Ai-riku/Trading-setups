@@ -81,7 +81,7 @@ In case of questions, please write to:
 
 <a id='products'></a>
 ## QuantInsti Learning Products
-- [EPAT]([https://www.quantinsti.com/contact-us](https://www.quantinsti.com/epat?utm_source=github&utm_medium=referral&utm_campaign=trading-setups&utm_content=ib-forex-setup-readme))
+- [EPAT]([https://www.quantinsti.com/contact-us](https://www.quantinsti.com/epat?utm_source=github&utm_medium=referral&utm_campaign=trading-setups&utm_content=ib-forex-setup-readme)
 - [Quantra](https://quantra.quantinsti.com/?utm_source=github&utm_medium=referral&utm_campaign=trading-setups&utm_content=ib-forex-setup-readme)
 
 <a id='start'></a>
