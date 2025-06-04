@@ -46,8 +46,8 @@ In case of questions, please write to:
 
 <a id='products'></a>
 ## QuantInsti Learning Products
-- The trading setup was built based on [EPAT](https://www.quantinsti.com/epat?utm_source=github&utm_medium=referral&utm_campaign=trading-setups&utm_content=ib-forex-setup-readme)'s content
-- Self-paced courses are provided in [Quantra](https://quantra.quantinsti.com/?utm_source=github&utm_medium=referral&utm_campaign=trading-setups&utm_content=ib-forex-setup-readme)
+- The trading setup was built based on [EPAT](https://www.quantinsti.com/epat?utm_source=github&utm_medium=referral&utm_campaign=trading-setups&utm_content=ib-forex-setup-readme) content
+- Self-paced content is provided in [Quantra](https://quantra.quantinsti.com/?utm_source=github&utm_medium=referral&utm_campaign=trading-setups&utm_content=ib-forex-setup-readme)
 
 <a id='setups'></a>
 ## Available trading setups
