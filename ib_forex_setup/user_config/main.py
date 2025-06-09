@@ -46,12 +46,12 @@ trail = True
 # Set the seed you would like to use for your trading setup computations
 seed = 2025
 # The email that will be used to send the emails
-smtp_username = 'jcgtanaka@gmail.com'
+smtp_username = 'your_email@gmail.com'
 # The email to which the trading info will be sent. It can be the above or any other email
-to_email = 'jcgtanaka@gmail.com'
+to_email = 'the_email_recipient@gmail.com'
 # The app password that was obtained in Google. You need to allow app password in Google: 
 # https://support.google.com/mail/answer/185833?hl=en
-password = 'xreh bdtl tiug dmvn'
+password = 'asd jklh qwer yuio'
 ###############################################################################
 """ Set the additional variables you would like to add for the strategy functions"""
 # Example (uncomment the below code line to incorporate this variable in the trading setup)
