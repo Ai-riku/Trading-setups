@@ -71,6 +71,7 @@ You can use this setup only for forex assets with an Interactive Brokers API.
 - To test the trading setup quickly, please read: “Start_here_documentation”.
 - To use a customized strategy, please read: “Strategy_documentation”.
 - To learn more about the trading setup, please read: “The_trading_setup_references”.
+- Whenever you download again the setup or you want to modify the source code and run the setup, please read: “Develper_documentation”.
 
 <a id='help'></a>
 ## Ask for help
