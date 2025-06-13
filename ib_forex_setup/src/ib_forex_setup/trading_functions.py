@@ -505,37 +505,38 @@ def define_trading_week(local_timezone, trading_start_hour, day_end_minute):
     # Set the now datetime
     today = dt.datetime.now().astimezone(pytz.timezone(local_timezone))
     
-    # Set the easter timezone string
+    # Set the Bogota timezone string
     bog = 'America/Bogota'
-    # Set the local-timezone-based today's datetime
-    bogota_datetime = today.astimezone(pytz.timezone(bog)).replace(tzinfo=None)
+    # Set the Bogota-based today's datetime (naive)
+    bogota_datetime = today.astimezone(pytz.timezone(bog))
     
     # Bogota-based start datetime
-    bogota_trading_start_datetime = today.replace(hour=trading_start_hour, minute=day_end_minute, second=0, microsecond=0).astimezone(pytz.timezone(bog)).replace(tzinfo=None)
+    bogota_trading_start_datetime = today.replace(hour=trading_start_hour, minute=day_end_minute, second=0, microsecond=0).astimezone(pytz.timezone(bog))
     # Bogota-based start hour
     bogota_trading_start_hour = bogota_trading_start_datetime.hour
     # Bogota-based start minute
     bogota_trading_start_minute = bogota_trading_start_datetime.minute
     
-    # If we're out of trading hours (This is for Forex trading hours)
-    if (bogota_datetime.weekday()==4 and bogota_datetime.hour>=bogota_trading_start_hour and bogota_datetime.minute>=bogota_trading_start_minute) or \
-        (bogota_datetime.weekday()==5) or \
-        (bogota_datetime.weekday()==6 and bogota_datetime.hour<=bogota_trading_start_hour and bogota_datetime.minute<=bogota_trading_start_minute):
-        # Set the Sunday datetime
-        sunday = (bogota_datetime + dt.timedelta( (6-bogota_datetime.weekday()) % 7 ))
-        # Set the Friday datetime
-        friday = (bogota_datetime + dt.timedelta( (4-bogota_datetime.weekday()) % 7 ))
-    # If we're in the trading hours (This is for Forex trading hours)
+    # If we're out of trading hours (e.g., after market close on Friday, or on Saturday/Sunday)
+    if (bogota_datetime.weekday() == 4 and bogota_datetime.time() >= bogota_trading_start_datetime.time()) or \
+       (bogota_datetime.weekday() == 5) or \
+       (bogota_datetime.weekday() == 6 and bogota_datetime.time() <= bogota_trading_start_datetime.time()):
+        
+        # The trading week has ended, so the next one starts on the upcoming Sunday.
+        sunday = bogota_datetime + dt.timedelta(days=(6 - bogota_datetime.weekday()) % 7)
+        # The end of that *next* trading week will be the Friday after that Sunday.
+        friday = sunday + dt.timedelta(days=5) # This is the corrected line
+    # If we're within the trading hours
     else:
-        # Set the Friday datetime
-        friday = (bogota_datetime + dt.timedelta( (4-bogota_datetime.weekday()) % 7 ))
-        # Set the Sunday datetime
-        sunday = (bogota_datetime - dt.timedelta( (bogota_datetime.weekday()-6) % 7 ))  
-    
+        # The trading week ends on the upcoming Friday.
+        friday = bogota_datetime + dt.timedelta(days=(4 - bogota_datetime.weekday()) % 7)
+        # The trading week started on the previous Sunday.
+        sunday = bogota_datetime - dt.timedelta(days=(bogota_datetime.weekday() + 1) % 7)
+        
     # Set the trading week start datetime
-    week_start = dt.datetime(sunday.year,sunday.month,sunday.day,bogota_trading_start_hour,bogota_trading_start_minute,0)
+    week_start = dt.datetime(sunday.year, sunday.month, sunday.day, bogota_trading_start_hour, bogota_trading_start_minute, 0)
     # Set the trading week end datetime
-    week_end = dt.datetime(friday.year,friday.month,friday.day,bogota_trading_start_hour,bogota_trading_start_minute,0)
+    week_end = dt.datetime(friday.year, friday.month, friday.day, bogota_trading_start_hour, bogota_trading_start_minute, 0)
     
     # Localize the week start datetime to Bogota's timezone
     week_start = pytz.timezone(bog).localize(week_start)
@@ -543,11 +544,11 @@ def define_trading_week(local_timezone, trading_start_hour, day_end_minute):
     week_end = pytz.timezone(bog).localize(week_end)
     
     # Convert the week start datetime to the trader's timezone 
-    week_start = week_start.astimezone(pytz.timezone(local_timezone)).replace(tzinfo=None)
+    week_start = week_start.astimezone(pytz.timezone(local_timezone))
     # Convert the week end datetime to the trader's timezone 
-    week_end = week_end.astimezone(pytz.timezone(local_timezone)).replace(tzinfo=None)
+    week_end = week_end.astimezone(pytz.timezone(local_timezone))
     
-    return week_start, week_end 
+    return week_start.replace(tzinfo=None), week_end.replace(tzinfo=None) 
 
 def save_xlsx(dict_df, path):
     """
