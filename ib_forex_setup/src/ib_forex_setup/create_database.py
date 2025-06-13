@@ -10,7 +10,7 @@ from ib_forex_setup import engine
 
 # Import the necessary libraries
 import pandas as pd
-import trading_functions as tf
+from ib_forex_setup import trading_functions as tf
 
 def create_trading_info_workbook(smtp_username, to_email, password):
 
