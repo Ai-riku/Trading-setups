@@ -790,4 +790,4 @@ def strategy_parameter_optimization(seed, data_frequency,
     """ Change code up to here """
     
     # Saving the base_df dataframe
-    base_df.to_csv('data/'+base_df_address)    
+    base_df.to_csv(base_df_address)    
