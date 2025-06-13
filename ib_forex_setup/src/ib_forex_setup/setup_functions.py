@@ -1360,13 +1360,8 @@ def strategy(app):
                 if base_df.empty: # If it was empty due to read error or initial state
                     base_df = base_df_to_concat
                 else: # Concatenate/update existing
-                    print('hola1')
-                    print(base_df)
-                    print('hola2')
-                    print(base_df_to_concat)
                     base_df = pd.concat([base_df,base_df_to_concat])
                     base_df = base_df[~base_df.index.duplicated(keep='last')].sort_index()
-
 
                 base_df.to_csv(current_base_df_path)
             else:
