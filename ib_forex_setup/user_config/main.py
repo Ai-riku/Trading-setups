@@ -14,7 +14,7 @@ from ib_forex_setup import engine
 ###############################################################################
 """ Set the variables as per your trading specifications"""
 # Set account name in case you do paper trading
-account = 'DU1682711'
+account = 'DU1234567'
 # Set the time zone
 timezone = 'America/Lima'
 # The app port
