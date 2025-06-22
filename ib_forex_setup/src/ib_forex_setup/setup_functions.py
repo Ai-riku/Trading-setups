@@ -8,6 +8,7 @@
 
 # Import the necessary libraries
 import os
+import math
 import time
 import smtplib
 import inspect
@@ -967,7 +968,37 @@ def send_orders_as_bracket(app, order_id, quantity, mkt_order, sl_order, tp_orde
         send_market_order(app, order_id, quantity)
     else:
         pass
-        
+    
+def set_new_and_rm_orders_quantities(app):
+    
+    # Set the signal
+    signal = app.signal
+    
+    # Set the new quantity for the current market order
+    if app.previous_leverage != 0:
+        new_quantity = (app.leverage - app.previous_leverage)*app.previous_quantity/app.previous_leverage
+    else:
+        new_quantity = app.current_quantity
+
+    if new_quantity < 0:
+        new_quantity = math.floor(abs(new_quantity))
+        if app.previous_leverage != 0:
+            rm_quantity = int(app.previous_quantity - new_quantity)
+        else:
+            rm_quantity = None
+        signal = -1.0
+    elif new_quantity > 0:
+        new_quantity = math.floor(abs(new_quantity))
+        if app.previous_leverage != 0:
+            rm_quantity = int(app.previous_quantity + new_quantity)
+        else:
+            rm_quantity = None
+    else:
+        new_quantity = app.previous_quantity
+        rm_quantity = None
+    
+    return signal, new_quantity, rm_quantity 
+                
 def send_orders(app):
     ''' Function to send the orders if needed'''
 
@@ -1010,9 +1041,62 @@ def send_orders(app):
     print('='*50)
         
     if (app.leverage == 0.0):
-        print('Leverage is 0.0. There will be no orders to send...')
-        app.logging.info('Leverage is 0.0. There will be no orders to send...')
+        if app.previous_quantity > 0:
+            app.signal = -1.0
+
+            if app.risk_management_bool:
+                # Set the executors list
+                executors_list = []
+                # Append the functions to be used in parallel
+                with ThreadPoolExecutor(2) as executor:
+                    # Cancel the previous risk management orders
+                    executors_list.append(executor.submit(cancel_risk_management_previous_orders, app))
+                    # Short-sell the asset and send the risk management orders
+                    executors_list.append(executor.submit(send_orders_as_bracket, app, order_id, app.previous_quantity, True, False, False))
         
+                # Run the functions in parallel
+                for x in executors_list:
+                    x.result()
+                    
+                print('The previous long position is closed and the risk management thresholds were closed if needed...')
+                app.logging.info('We proceed to close the position...')
+            else:
+                send_orders_as_bracket(app, app, order_id, app.previous_quantity, True, False, False)
+                print("Closed the long position...")
+                app.logging.info("Closed the long position...")
+            
+            app.signal = 0.0
+            
+        elif app.previous_quantity < 0:
+            app.signal = 1.0
+
+            if app.risk_management_bool:
+                # Set the executors list
+                executors_list = []
+                # Append the functions to be used in parallel
+                with ThreadPoolExecutor(2) as executor:
+                    # Cancel the previous risk management orders
+                    executors_list.append(executor.submit(cancel_risk_management_previous_orders, app))
+                    # Short-sell the asset and send the risk management orders
+                    executors_list.append(executor.submit(send_orders_as_bracket, app, order_id, app.previous_quantity, True, False, False))
+        
+                # Run the functions in parallel
+                for x in executors_list:
+                    x.result()
+                    
+                print('The previous long position is closed and the risk management thresholds were closed if needed...')
+                app.logging.info('We proceed to close the position...')
+            else:
+                send_orders_as_bracket(app, app, order_id, app.previous_quantity, True, False, False)
+                print("Closed the long position...")
+                app.logging.info("Closed the long position...")
+            
+            app.signal = 0.0
+            
+        else:
+            print('Leverage is 0.0. There will be no orders to send...')
+            app.logging.info('Leverage is 0.0. There will be no orders to send...')
+
     elif app.previous_leverage == app.leverage:
         # If the previous position is short and the current signal is to go long
         if app.previous_quantity > 0 and app.signal > 0:
@@ -1036,7 +1120,7 @@ def send_orders(app):
         elif app.previous_quantity > 0 and app.signal < 0:
                 
             new_quantity = int(abs(app.previous_quantity) + app.current_quantity)
-    
+
             print(f'new quantity is {new_quantity}')
     
             # Set the executors list
@@ -1139,22 +1223,15 @@ def send_orders(app):
     else:
         if app.previous_quantity > 0 and app.signal > 0:
             
-            new_quantity = (app.leverage - app.previous_leverage)*app.previous_quantity/app.previous_leverage
+            app.signal, new_quantity, rm_quantity = set_new_and_rm_orders_quantities(app) 
+                   
+            # Send the new risk management orders
+            send_orders_as_bracket(app, order_id, int(new_quantity), True, True, True, rm_quantity)
             
-            if new_quantity > 0:            
-                print(f'extra quantity is {new_quantity}')
-        
-                # Send the new risk management orders
-                send_orders_as_bracket(app, order_id, int(new_quantity), True, True, True, int(new_quantity+app.previous_quantity))
-                    
-            else:
-                print(f'reduced quantity is {new_quantity}')
-                
-                app.signal = -1.0
-        
-                # Send the new risk management orders
-                send_orders_as_bracket(app, order_id, abs(new_quantity), True, True, True, int(app.previous_quantity-new_quantity))
-    
+            # Set the signal as per the net signal
+            if app.signal < 0:
+                app.signal = 1.0
+                        
             print('The long position has been increased as per the increased leverage...')
             app.logging.info('The long position has been increased as per the increased leverage...')
             
@@ -1182,22 +1259,15 @@ def send_orders(app):
             
         elif app.previous_quantity < 0 and app.signal < 0:
             
-            new_quantity = (app.leverage - app.previous_leverage)*app.previous_quantity/app.previous_leverage
+            app.signal, new_quantity, rm_quantity = set_new_and_rm_orders_quantities(app) 
+                   
+            # Send the new risk management orders
+            send_orders_as_bracket(app, order_id, int(new_quantity), True, True, True, rm_quantity)
             
-            if new_quantity < 0:            
-                print(f'extra quantity is {new_quantity}')
-        
-                # Send the new risk management orders
-                send_orders_as_bracket(app, order_id, abs(new_quantity), True, True, True, int(new_quantity+app.previous_quantity))
-                    
-            else:
-                print(f'reduced quantity is {new_quantity}')
-                
-                app.signal = 1.0
-        
-                # Send the new risk management orders
-                send_orders_as_bracket(app, order_id, new_quantity, True, True, True, int(app.previous_quantity-new_quantity))
-    
+            # Set the signal as per the net signal
+            if app.signal > 0:
+                app.signal = -1.0
+                            
             print('The long position has been increased as per the increased leverage...')
             app.logging.info('The long position has been increased as per the increased leverage...')
             
